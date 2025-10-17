@@ -67,17 +67,19 @@ print("Max LPM (output y) across all datasets:", y_max)
 #%%
 #User Inputs
 #Training data
-training_data_sets = [1,2,3]
+training_data_sets = [1,2]
 test_data_set = 4
 #n>=m ALWAYS
-n=3 #order of denominator
-m=2 #order of numerator
+n=2 #order of denominator
+m=1 #order of numerator
 
 
 #%%
 #Functions
 
 def normalize_data(data):
+    # Create a COPY to avoid modifying original data
+    data_copy = data.copy()
     data_set1 = np.array(data[0])
     data_set2 = np.array(data[1])
     data_set3 = np.array(data[2])
@@ -86,9 +88,9 @@ def normalize_data(data):
     all_data = np.concatenate([data_set1, data_set2, data_set3, data_set4], axis=0)
     u_max = np.max(all_data[:, 1])
     y_max = np.max(all_data[:, 2])
-    data[:, :, 1] /= u_max
-    data[:, :, 2] /= y_max
-    return data, u_max, y_max
+    data_copy[:, :, 1] /= u_max
+    data_copy[:, :, 2] /= y_max
+    return data_copy, u_max, y_max
 
 def form_A_b(y_train, u_train, n, m):
     N = y_train.shape[0]
@@ -112,9 +114,16 @@ def get_CT_tf(A, b, n, u_max, y_max, dt):
         exit()
     else:
         print("The A matrix is well-conditioned")
-    x = np.linalg.lstsq(A, b)[0]
+    
+    x = np.linalg.lstsq(A, b, rcond=None)[0]
+    
+    # Check if solution has significant imaginary parts
+    if np.any(np.abs(np.imag(x)) > 1e-10):
+        print("WARNING: Solution has imaginary components! Taking real part.")
+        print(f"Max imaginary part: {np.max(np.abs(np.imag(x))):.2e}")
+        x = np.real(x)
 
-    # Compute the MSE, MSO, NMSE.
+    # Compute the MSE, MSO, NMSE on normalized data
     MSE = 1/N*(np.linalg.norm(b-A@x)**2)
     MSO = 1/N*(np.linalg.norm(b)**2)
     NMSE = MSE/MSO
@@ -123,14 +132,24 @@ def get_CT_tf(A, b, n, u_max, y_max, dt):
     print('The MSO for training is', MSO)
     print('The NMSE for training is', NMSE, '\n')
 
+    # Compute the uncertainty and relative uncertainty. 
+    # Compute the uncertainty and relative uncertainty. 
+    sigma = 1/(N-(n+m+1))* np.linalg.norm(b-A@x)*np.linalg.inv(A.T@A)
+    sigma_diag = np.diag(sigma)
+    #Divides element wise
+    rel_unc = sigma_diag/np.abs(x)*100
+    print('The uncertainty is         ', sigma_diag)
+    print('The relative uncertainty is', rel_unc, '%\n')
+
     Pd_ID_den = np.hstack([1, x[0:n].reshape(-1,)])  # denominator coefficients of DT TF
     Pd_ID_num = x[n:].reshape(-1,)  # numerator coefficients of DT TF
     Pd_ID = y_max / u_max * control.tf(Pd_ID_num, Pd_ID_den, dt)
     Pc_ID = d2c.d2c(Pd_ID)
-    return Pc_ID
+    return Pc_ID, Pd_ID, u_max, y_max
 
 def get_tf(data,n,m,training_data_sets):
     dt = data[0, 1, 0] - data[0, 0, 0]
+    print("dt = ",dt)
     norm_data, u_max, y_max = normalize_data(data)
     A_stacked = None
     b_stacked = None
@@ -145,22 +164,22 @@ def get_tf(data,n,m,training_data_sets):
         else:
             A_stacked = np.vstack([A_stacked, A])
             b_stacked = np.vstack([b_stacked, b])
-    Pc_ID = get_CT_tf(A_stacked, b_stacked, n, u_max, y_max, dt)
-    return Pc_ID
+    Pc_ID, Pd_ID, u_max, y_max = get_CT_tf(A_stacked, b_stacked, n, u_max, y_max, dt)
+    return Pc_ID, Pd_ID
 
-def test_error(Pc_ID, data, plot=False):
+def test_error(Pd_ID, data, plot=False):
     dt = data[0, 1, 0] - data[0, 0, 0]
     for i in range(data.shape[0]):
         test_data = np.array(data[i])
         t = test_data[:, 0]
         y_test = test_data[:, 2]
-        y_max = np.max(y_test)
         u_test = test_data[:, 1]
-        td_ID_test, yd_ID_test = control.forced_response(Pc_ID, t, u_test)
+        # Use discrete-time TF with the original unnormalized data
+        td_ID_test, yd_ID_test = control.forced_response(Pd_ID, t, u_test)
         if plot:
             fig, ax = plt.subplots(2, 1)
-            ax[0].set_ylabel(r'$u(t)$ (Pa)')
-            ax[1].set_ylabel(r'$y(t)$ (N)')
+            ax[0].set_ylabel(r'$u(t)$ (V)')
+            ax[1].set_ylabel(r'$y(t)$ (LPM)')
             ax[0].plot(t, u_test, '--', label='input', color='C0')
             ax[1].plot(t, y_test, label='output', color='C1')
             ax[1].plot(td_ID_test, yd_ID_test, '-.', label="IDed output", color='C2')
@@ -170,16 +189,21 @@ def test_error(Pc_ID, data, plot=False):
             fig.tight_layout()
             plt.show()
         error = yd_ID_test - y_test
-        print("abs average error for data set", i, ":", np.mean(np.abs(error)))
-        print("rel average error for data set", i, ":", np.mean(np.abs(error/y_max))*100,"%")
+        y_max_dataset = np.max(np.abs(y_test))
+        print(f"Dataset {i}: abs avg error = {np.mean(np.abs(error)):.4f}, rel avg error = {np.mean(np.abs(error/y_max_dataset))*100:.2f}%")
 
-
-Pc_ID = get_tf(data,n,m,training_data_sets)
-test_error(Pc_ID, data, plot=True)
-#Get Error
+print("Training on data set: ", training_data_sets)
+print("="*50)
+Pc_ID, Pd_ID = get_tf(data,n,m,training_data_sets)
+print("\nContinuous-time TF:")
+print(Pc_ID)
+print("\nDiscrete-time TF:")
+print(Pd_ID)
+print("\n" + "="*50)
+print("Testing on all datasets:")
+print("="*50)
+test_error(Pd_ID, data, plot=True)
 exit()
-
-print("Pc_ID",Pc_ID)
 
 
 
