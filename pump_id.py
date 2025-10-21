@@ -25,10 +25,6 @@ plot etc
 
 '''
 
-
-
-
-
 #%%
 #Import Data
 #Plotting parameters
@@ -443,8 +439,4 @@ ax[0].legend(loc='best')
 ax[1].legend(loc='best')
 # fig.tight_layout()
 # fig.savefig(path.joinpath('1st_order_unstable_W2.pdf'))
-
-
-# %%
-# Plot
 plt.show()
