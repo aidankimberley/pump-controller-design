@@ -217,6 +217,12 @@ Pc_ID0, Pd_ID0 = get_tf(data,n,m,[0])
 num_arr = np.append(num_arr, Pc_ID0.num[0])
 den_arr = np.append(den_arr, Pc_ID0.den[0][0][1])
 
+#Test Generalization
+test_error(Pd_ID3, data, plot=True)
+test_error(Pd_ID2, data, plot=True)
+test_error(Pd_ID1, data, plot=True)
+test_error(Pd_ID0, data, plot=True)
+
 #%%
 #plot bode plots of all datasets on same plot using Pc_ID3,2,1,0
 N = 1000
@@ -253,11 +259,10 @@ plt.show()
 # %%
 
 
-#LS NOT WORKING RN, GOING TO TAKE AVERAGE FOR NOMINAL MODEL FOR NOW
+#LS Working only for 1st order currently
 
 #Formulate New LS to find nominal model
 #First assume 1st order model
-#SOMETHING WRONG WITH THIS, P_NOM IS NOT INBETWEEN THE OTHERS
 N = 1000
 w = np.logspace(-2, 3, N) #Use logspace to get even spacing in log scale
 A_nominal = np.zeros((N*4,2), dtype=complex)
@@ -292,8 +297,15 @@ print("x = ", x)
 k_nom = float(x[0])
 tau_nom = float(x[1])
 
+dt = data[0, 1, 0] - data[0, 0, 0]
 Pc_nominal = control.tf([k_nom/tau_nom], [1, 1/tau_nom])
 print("Pc_nominal = ", Pc_nominal)
+Pd_nominal = control.c2d(Pc_nominal, dt, method='zoh')
+print("Pd_nominal = ", Pd_nominal)
+
+#Test Generalization
+test_error(Pd_nominal, data, plot=True)
+
 # %%
 
 #%%
