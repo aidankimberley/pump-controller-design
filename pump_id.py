@@ -381,9 +381,14 @@ mag_max_dB, mag_max_abs = unc_bound.residual_max_mag(R, w)
 # Bode plot
 N_w = 500
 w_shared = np.logspace(-1, 3, N_w)
+R2 = unc_bound.residuals(Pc_ID2, [Pc_ID0, Pc_ID1, Pc_ID3])
+mag_max_dB2, mag_max_abs2 = unc_bound.residual_max_mag(R2, w_shared)
+print("average max magnitude in dB for Pc_ID2 = ", np.mean(mag_max_dB2))
 
 # Compute magnitude part of R(s) in both dB and in absolute units
 mag_max_dB, mag_max_abs = unc_bound.residual_max_mag(R, w_shared)
+print("average max magnitude in dB = ", np.mean(mag_max_dB))
+
 
 # Plot Bode magnitude plot in dB and in absolute units
 fig, ax = plt.subplots(2, 1)
