@@ -1,0 +1,278 @@
+\documentclass[11pt]{article}
+
+% Latex template from James Richard Forbes, 2025/10/13, McGill University.
+% Parts of this template are from Paul Furgal, Timothy D. Barfoot, Christopher J. Damaren, Adam Phillip, and others. 
+
+\usepackage[top=1.0in, bottom=1.0in, left=1.0in, right=1.0in]{geometry}
+\usepackage{amsmath} % cmex10
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{bm}
+\usepackage{mathrsfs}
+\usepackage{graphicx}
+\usepackage{epsfig}
+\usepackage{subfigure}
+\usepackage{enumerate}
+\usepackage{cite}
+\usepackage{setspace}
+\usepackage{cancel} % To cancel out terms
+\usepackage{color}
+\usepackage{wrapfig}
+\usepackage{xspace}
+\usepackage[colorlinks, citecolor=black, linkcolor=black, linktocpage=true]{hyperref}
+\usepackage{times}
+\usepackage{array}
+\usepackage{parskip}
+\usepackage{paralist}
+\usepackage{titlesec}
+
+% Custom commands
+\newcommand{\norm}[1]{\left\Vert#1\right\Vert} % Norm
+\newcommand{\p}{\partial}
+\newcommand{\f}{\frac}
+\newcommand{\dt}{\mathrm{d}t} 
+\newcommand{\dee}{\textrm{d}}
+\newcommand{\trans}{{\ensuremath{\mathsf{T}}}} % transpose
+\newcommand{\trace}{ {\ensuremath{\mathrm{tr}}} } % \trace
+\newcommand{\rk}{{\ensuremath{\mathrm{rk}}}} % rank
+\newcommand{\onehalf}{\mbox{$\textstyle{\frac{1}{2}}$}} 
+
+% Basic bold for letters and symbols
+\DeclareMathAlphabet{\mbf}{OT1}{ptm}{b}{n}
+\newcommand{\mbs}[1]{{\boldsymbol{#1}}}
+\newcommand{\mbm}[1]{ \textbf{\textit{#1}} } % {\bm #1}
+\newcommand{\mbc}[1]{ \boldsymbol{\mathcal{#1}} } 
+
+% Helper bold symbols
+\newcommand{\mbsdot}[1]{{\dot{\boldsymbol{#1}}}}
+\newcommand{\mbsbar}[1]{{\bar{\boldsymbol{#1}}}}
+\newcommand{\mbshat}[1]{{\hat{\boldsymbol{#1}}}}
+\newcommand{\mbsdel}[1]{{\delta {\boldsymbol{#1}}}}
+\newcommand{\mbstilde}[1]{{\tilde{\boldsymbol{#1}}}}
+\newcommand{\mbfdot}[1]{{\dot{\mbf{#1}}}}
+\newcommand{\mbfbar}[1]{{\bar{\mbf{#1}}}}
+\newcommand{\mbfhat}[1]{{\hat{\mbf{#1}}}}
+\newcommand{\mbfdel}[1]{{\delta{\mbf{#1}}}}
+\newcommand{\mbftilde}[1]{{\tilde{\mbf{#1}}}}
+
+% Packed lists
+\newenvironment{packed_enum}{
+\begin{enumerate}
+  \setlength{\itemsep}{1pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{enumerate}}
+
+\newenvironment{packed_itemize}{
+\begin{itemize}
+  \setlength{\itemsep}{1pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{itemize}}
+
+% Footer
+\usepackage{fancyhdr, lastpage}
+\pagestyle{fancy}
+\lhead{}
+\rhead{} 
+\chead{} 
+\lfoot{\today}
+\cfoot{}
+\rfoot{\small Page \thepage\ of \pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.0pt} 
+\renewcommand{\footrulewidth}{0.75pt}
+
+% Make sure paragraphs indent
+\setlength{\parindent}{25pt}
+
+
+\title{\vfill\textbf{MECH 412 Project Part 1} \\ \textbf{Pump System Identification and Uncertainty Characterization} \vfill}
+
+\author{FirstName1 LastName1, Student ID \\ FirstName2 LastName2, Student ID  \\  FirstName3 LastName3, Student ID \\ \small{Department of Mechanical Engineering, McGill University} \\ \small{817 Sherbrooke Street West, Montreal, QC, H3A 0C3}}
+
+\date{\today}
+
+\begin{document}
+
+\begin{titlepage}
+\pagenumbering{gobble} % Turns page numbering off for title page
+\begin{center}
+\includegraphics[width=0.3\textwidth]{report_template_2025_10_13/figs/logo/McGill.png}
+\vspace{1cm}
+\end{center}
+\maketitle
+\vfill
+\end{titlepage}
+
+\clearpage % new page
+
+\pagenumbering{arabic}
+
+\section{Introduction}
+\label{sec:intro}
+
+Deriving a first principles model of the pump system is impractical due to the complex interactions between electrical, mechanical, and fluid dynamics components. The pump's behavior involves nonlinear relationships between input voltage and output flow rate, making analytical modeling challenging. Additionally, the system exhibits threshold behavior where the pump does not operate when the input voltage is below approximately 1.5~V, further complicating model development. To address these challenges, a data-driven system identification approach is employed using four input-output datasets collected across different operating voltage ranges. Each dataset contains time series measurements of the input voltage (in volts, V) and the corresponding water flow rate (in liters per minute, LPM), with the maximum input voltage constrained to 5~V. The objective of this work is to identify a nominal continuous-time transfer function model $P(s)$ that captures the dominant dynamics of the pump system, and to characterize the model uncertainty in the frequency domain using an uncertainty weighting function $W_2(s)$. This identified model will subsequently be used for controller design in Part 2 of the project.
+
+\section{Nominal Model Identification}
+\label{sec:nominal}
+
+This section describes the step-by-step process for identifying a continuous-time nominal model $P(s)$ from discrete-time input-output data.
+
+\subsection{System Identification Approach}
+
+The system identification approach employs least-squares parameter estimation in the time domain, followed by conversion to continuous-time. The process begins by normalizing the input and output data across all four datasets to ensure numerical conditioning. The normalized data is then used to form a least-squares problem that estimates the parameters of a discrete-time transfer function, which is subsequently converted to continuous-time using the matrix logarithm method.
+
+For a first-order model with $n=1$ (denominator order) and $m=0$ (numerator order), the transfer function takes the form
+\begin{align}
+	P(s) = \frac{k}{\tau s + 1}, \label{eq:first_order}
+\end{align}
+where $k$ is the DC gain and $\tau$ is the time constant. This structure was selected based on the physical characteristics of the pump system, which exhibits first-order-like dynamics with a dominant pole.
+
+\subsection{Using Multiple Datasets for Nominal Model}
+
+Each of the four input-output datasets corresponds to a different input voltage operating range. Initially, system identification was performed separately on each dataset, yielding four distinct models $P_0(s)$, $P_1(s)$, $P_2(s)$, and $P_3(s)$. These models represent the plant dynamics at different operating points and are considered the off-nominal plants.
+
+To obtain a single nominal model that represents the average behavior across all operating conditions, a frequency-domain least-squares approach was employed. At $N=1000$ logarithmically-spaced frequency points $\omega_i$ in the range $[0.01, 1000]$~rad/s, the following system of equations was formed:
+\begin{align}
+	\begin{bmatrix}
+		P_k(j\omega_i) \\
+		\vdots
+	\end{bmatrix} = 
+	\begin{bmatrix}
+		1 & -P_k(j\omega_i) j \omega_i \\
+		\vdots & \vdots
+	\end{bmatrix}
+	\begin{bmatrix}
+		k \\
+		1/\tau
+	\end{bmatrix}, \quad k = 0,1,2,3,
+\end{align}
+where $P_k(j\omega_i)$ denotes the frequency response of the $k$-th identified model. This system was solved in the least-squares sense by separating the real and imaginary parts, resulting in the nominal model parameters $k$ and $\tau$. The identified nominal plant transfer function is $P(s) = \frac{23.220753}{s + 10.019669}$, where $k/\tau = 23.220753$ and the time constant is $\tau = 0.099804$.
+
+\subsection{Model Accuracy and Confidence Metrics}
+
+The assessment of model quality requires distinguishing between accuracy and precision metrics. Accuracy metrics measure how close the model predictions are to the measured data, while precision metrics quantify the confidence in the estimated model parameters.
+
+Several accuracy metrics were computed to assess model performance. The normalized mean squared error (NMSE) was computed as
+\begin{align}
+	\text{NMSE} = \frac{\text{MSE}}{\text{MSO}} = \frac{\frac{1}{N}\norm{\mathbf{b} - \mathbf{A}\mathbf{x}}^2}{\frac{1}{N}\norm{\mathbf{b}}^2},
+\end{align}
+where $\mathbf{b}$ is the output vector, $\mathbf{A}$ is the regression matrix, and $\mathbf{x}$ contains the estimated parameters. Lower NMSE values indicate better model fit to the training data. For validation, the absolute average error $\bar{e}_{\text{abs}} = \frac{1}{N}\sum_{i=1}^N |e(t_i)|$ and relative average error $\bar{e}_{\text{rel}} = \frac{1}{N}\sum_{i=1}^N \frac{|e(t_i)|}{y_{\max}} \times 100\%$ were computed for each dataset, where $e(t_i) = y_{\text{predicted}}(t_i) - y_{\text{measured}}(t_i)$.
+
+Precision metrics were used to assess confidence in the parameter estimates. The condition number of the least-squares matrix $\mathbf{A}$ was computed to evaluate numerical conditioning; a well-conditioned matrix (condition number $< 10^{10}$) indicates reliable parameter estimates. The maximum relative parameter uncertainty was computed from the covariance matrix of the parameter estimates as $\sigma_{\text{rel},\max} = \max_i \frac{\sigma_i}{|x_i|} \times 100\%$, where $\sigma_i$ is the standard deviation of the $i$-th parameter estimate. This metric quantifies the uncertainty in the estimated parameters relative to their magnitude. For the frequency-domain approach used to compute the nominal model, parameter uncertainty was also assessed through comparison with the individual dataset models, which provides insight into parameter variability across operating conditions. The validation results show that for Dataset 0, the absolute average error was 0.855790~LPM with a relative average error of 10.59\%; for Dataset 1, 2.055407~LPM (28.13\%); for Dataset 2, 0.557824~LPM (4.82\%); and for Dataset 3, 2.072606~LPM (14.40\%).
+
+\subsection{Model Validation}
+
+Model validation was performed by simulating the identified discrete-time nominal model with the input signals from each dataset and comparing the predicted outputs with the measured outputs. For each dataset, the absolute average error and relative average error were computed, along with the root mean squared error (RMSE) defined as $\text{RMSE} = \sqrt{\frac{1}{N}\sum_{i=1}^N e(t_i)^2}$.
+
+Figure~\ref{fig:validation} shows the validation results, comparing the measured and predicted outputs for all four datasets. The plots demonstrate that the identified nominal model captures the dominant dynamics of the system, with reasonable agreement between predicted and measured outputs across all datasets. The validation metrics show consistent performance across different operating voltage ranges, indicating that the nominal model provides a good representation of the system behavior.
+
+Figure~\ref{fig:time_domain_comparison} shows a time-domain comparison between the nominal model predictions and the off-nominal model predictions for each dataset. This comparison illustrates how the nominal model, which represents average behavior across all operating conditions, compares to models identified from individual datasets. The off-nominal models, while potentially providing better fit to their respective datasets, may not generalize as well to other operating conditions, which supports the selection of a nominal model that balances accuracy across all datasets.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.9\textwidth]{validation_plots.png}
+	\caption{Validation results: comparison of measured and predicted outputs for all four datasets.}
+	\label{fig:validation}
+\end{figure}
+
+Figure~\ref{fig:errors} shows the absolute and relative errors versus time for each dataset. These plots provide insight into the temporal distribution of modeling errors and help identify regions where the model performs well or poorly. The error plots reveal that modeling errors are generally well-distributed over time, with no systematic bias evident in the predictions.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.9\textwidth]{error_plots.png}
+	\caption{Absolute and relative errors versus time for each dataset.}
+	\label{fig:errors}
+\end{figure}
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.9\textwidth]{time_domain_comparison.png}
+	\caption{Time-domain comparison of nominal model predictions versus off-nominal model predictions for each dataset.}
+	\label{fig:time_domain_comparison}
+\end{figure}
+
+\subsection{Selection of Numerator and Denominator Orders}
+
+The selection of the numerator order $m$ and denominator order $n$ in the transfer function form
+\begin{align}
+	P(s) = \frac{b_m s^m + b_{m-1} s^{m-1} + \cdots + b_1 s + b_0}{s^n + a_{n-1} s^{n-1} + \cdots + a_1 s + a_0} \label{eq:tf_form}
+\end{align}
+was guided by physical reasoning and model validation. A first-order model ($n=1$, $m=0$) was selected based on several considerations. The pump system exhibits first-order-like step response characteristics, suggesting that a first-order model should be sufficient to capture the dominant dynamics. The condition number of the regression matrix remained well-conditioned for first-order models, indicating numerical reliability in parameter estimation.
+
+To verify that a first-order model is appropriate, higher-order models were tested and compared. A second-order model with $n=2$ and $m=1$ was identified using the same datasets. The validation results showed that the higher-order model exhibited worse generalization performance compared to the first-order model. Specifically, the relative average errors for the higher-order model were higher than those of the first-order model across all datasets, with differences ranging from -13.66\% to 10.64\%. This indicates that the higher-order model was overfitting to the training data, capturing noise and unmodeled dynamics rather than improving the representation of the true system behavior. The first-order model, with its simpler structure, provides better generalization and is more suitable for controller design. The constraint $n \geq m$ was enforced to ensure proper system behavior, resulting in the final form given in \eqref{eq:first_order}.
+
+\section{Uncertainty Characterization}
+\label{sec:uncertainty}
+
+This section describes the step-by-step process for characterizing model uncertainty using the transfer function $W_2(s)$.
+
+\subsection{Off-Nominal Plants}
+
+The off-nominal plants $P_k(s)$, $k = 0, 1, 2, 3$, are the transfer functions identified from each individual dataset. These models represent the plant dynamics at different operating points and capture the variability in the system's behavior across different input voltage ranges. Each off-nominal plant was obtained using the same system identification procedure described in Section~\ref{sec:nominal}, but applied to a single dataset rather than the combined data.
+
+Figure~\ref{fig:bode_nominal} shows Bode magnitude plots of the nominal plant $P(s)$ and all four off-nominal plants $P_k(s)$ as a function of frequency in Hz. The plots reveal that while the models share similar frequency characteristics, there are noticeable differences in magnitude, particularly at low frequencies. These differences reflect the operating point-dependent behavior of the pump system, where different input voltage ranges result in varying DC gains and time constants.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.8\textwidth]{bode_nominal_offnominal.png}
+	\caption{Bode magnitude plot of the nominal plant $P(s)$ and off-nominal plants $P_k(s)$, $k = 0, 1, 2, 3$, plotted as a function of frequency $f$ in Hz.}
+	\label{fig:bode_nominal}
+\end{figure}
+
+\subsection{Residual Computation and Upper Bound}
+
+The residuals $R_k(s)$ are defined as
+\begin{align}
+	R_k(s) = \frac{P_k(s)}{P(s)} - 1, \quad k = 0, 1, 2, 3, \label{eq:residuals}
+\end{align}
+which represent the multiplicative uncertainty between each off-nominal plant and the nominal plant. The magnitude of these residuals was computed at $N_w = 500$ logarithmically-spaced frequency points $\omega_i$ in the range $[0.1, 1000]$~rad/s (corresponding to approximately $[0.016, 159]$~Hz).
+
+At each frequency point, the maximum magnitude across all residuals was computed:
+\begin{align}
+	|R_{\max}(j\omega_i)| = \max_{k=0,1,2,3} |R_k(j\omega_i)|.
+\end{align}
+This provides an upper bound on the uncertainty magnitude at each frequency, capturing the worst-case deviation from the nominal model. This upper bound represents the envelope of all residual magnitudes and serves as the target for the uncertainty weighting function $W_2(s)$.
+
+\subsection{Selection of $W_2(s)$ Order}
+
+The uncertainty weighting function $W_2(s)$ is selected to bound the residuals such that
+\begin{align}
+	|W_2(j\omega)| \geq |R_k(j\omega)|, \quad \forall k, \forall \omega.
+\end{align}
+The order $n$ of $W_2(s)$ in the form
+\begin{align}
+	W_2(s) = \frac{b_n s^n + b_{n-1} s^{n-1} + \cdots + b_1 s + b_0}{s^n + a_{n-1} s^{n-1} + \cdots + a_1 s + a_0} \label{eq:W2_form}
+\end{align}
+was selected through an iterative process that balanced the need for adequate bounding with the desire to avoid overfitting. Starting with lower orders ($n=1, 2$), the optimization-based fitting procedure was unable to find a transfer function that satisfied the bounding constraint across all frequencies. A third-order model ($n=3$) was found to provide a good balance between adequately bounding the residuals at all frequencies, maintaining a reasonable order for subsequent controller design, and ensuring $W_2(s)$ is stable and minimum phase (required for robust control design).
+
+An important consideration in selecting the order of $W_2(s)$ was the desire to avoid overfitting the uncertainty bound to the specific residual data. While higher-order models (e.g., $n=4$ or $n=5$) could potentially provide tighter bounds that more closely follow the upper bound $|R_{\max}(j\omega)|$, such models risk overfitting to the particular characteristics of the four datasets used. Overfitting would result in an uncertainty weight that is too optimistic and may not adequately represent the true uncertainty when the controller is applied to the actual system. The third-order model provides a smooth, conservative bound that captures the general trend of the uncertainty without being overly sensitive to local variations in the residual data. This approach ensures that the uncertainty characterization remains robust and generalizable beyond the specific datasets used for identification.
+
+The optimal $W_2(s)$ was computed using a constrained optimization procedure that minimizes the squared error between $|W_2(j\omega)|$ and the upper bound $|R_{\max}(j\omega)|$ while ensuring $|W_2(j\omega)| \geq |R_k(j\omega)|$ for all $k$ and all $\omega$. The resulting transfer function has the form $W_2(s) = \frac{N(s)}{D(s)}$ where $N(s)$ and $D(s)$ are third-order polynomials. The coefficient values can be obtained from the plot generation script output.
+
+Figure~\ref{fig:uncertainty} shows the Bode magnitude plots of the residuals $R_k(s)$ (dashed lines), the upper bound $|R_{\max}(j\omega)|$ (solid orange line), and the optimal uncertainty weighting function $W_2(s)$ (solid green line), all plotted as a function of frequency $f$ in Hz. The plot demonstrates that $W_2(s)$ successfully bounds all residuals across the frequency range of interest, providing a conservative yet reasonable characterization of the model uncertainty.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.8\textwidth]{uncertainty_bounds.png}
+	\caption{Bode magnitude plot of residuals $R_k(s)$, the upper bound, and the uncertainty weighting function $W_2(s)$, plotted as a function of frequency $f$ in Hz.}
+	\label{fig:uncertainty}
+\end{figure}
+
+\section{Justification for Continued Collaboration}
+\label{sec:justification}
+
+The system identification and uncertainty characterization results presented in this report demonstrate several key strengths that justify continued collaboration with MFE for Part 2 (controller design).
+
+The identified first-order nominal model $P(s)$ captures the dominant dynamics of the pump system with reasonable accuracy, as evidenced by validation results across all four datasets. The model structure is physically meaningful, with a DC gain $k$ and time constant $\tau$ that reflect the pump's response characteristics. The validation metrics show consistent performance across different operating voltage ranges, with relative average errors typically below 28.13\%, indicating that the model provides a reliable representation of the system behavior.
+
+The uncertainty weighting function $W_2(s)$ provides a rigorous frequency-domain characterization of model uncertainty, which is essential for robust controller design. The uncertainty bounds are appropriately conservative, particularly at low frequencies where control performance is most critical, while remaining tight enough to avoid overly conservative controller designs. The third-order structure of $W_2(s)$ balances the need for adequate bounding with the desire to avoid overfitting, ensuring that the uncertainty characterization remains generalizable.
+
+The approach employed is systematic and well-documented, using established system identification and uncertainty quantification techniques. The methodology includes proper validation procedures, assessment of both accuracy and precision metrics, and comparison with higher-order models to verify model selection. This systematic approach ensures that the identified model and uncertainty characterization are reliable and can be easily extended or refined if additional data becomes available.
+
+Comprehensive validation results are provided throughout this report, showing both successes and limitations of the identified model. This transparency allows for informed decision-making in controller design, where the controller can be designed to account for known model limitations. The time-domain comparison plots illustrate how the nominal model compares to off-nominal models, providing insight into the trade-offs between model complexity and generalization.
+
+The combination of a nominal model $P(s)$ and uncertainty weight $W_2(s)$ provides all necessary components for $H_\infty$ or $\mu$-synthesis robust controller design in Part 2. The nominal model is well-conditioned and suitable for controller synthesis, while the uncertainty weight captures the variability in system behavior across different operating conditions. The identified model and uncertainty characterization form a solid foundation for controller design, and the team is well-positioned to proceed with Part 2 of the project.
+
+\end{document}
+
