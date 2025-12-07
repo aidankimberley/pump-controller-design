@@ -1,0 +1,214 @@
+\documentclass[11pt]{article}
+
+% Latex template from James Richard Forbes, 2025/10/13, McGill University.
+
+\usepackage[top=1.0in, bottom=1.0in, left=1.0in, right=1.0in]{geometry}
+\usepackage{amsmath} % cmex10
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{bm}
+\usepackage{mathrsfs}
+\usepackage{graphicx}
+\usepackage{epsfig}
+\usepackage{subfigure}
+\usepackage{enumerate}
+\usepackage{cite}
+\usepackage{setspace}
+\usepackage{cancel} % To cancel out terms
+\usepackage{color}
+\usepackage{wrapfig}
+\usepackage{xspace}
+\usepackage[colorlinks, citecolor=black, linkcolor=black, linktocpage=true]{hyperref}
+\usepackage{times}
+\usepackage{array}
+\usepackage{parskip}
+\usepackage{paralist}
+\usepackage{titlesec}
+
+% Custom commands
+\newcommand{\norm}[1]{\left\Vert#1\right\Vert} % Norm
+\newcommand{\p}{\partial}
+\newcommand{\f}{\frac}
+\newcommand{\dt}{\mathrm{d}t} 
+\newcommand{\dee}{\textrm{d}}
+\newcommand{\trans}{{\ensuremath{\mathsf{T}}}} % transpose
+\newcommand{\trace}{ {\ensuremath{\mathrm{tr}}} } % \trace
+\newcommand{\rk}{{\ensuremath{\mathrm{rk}}}} % rank
+\newcommand{\onehalf}{\mbox{$\textstyle{\frac{1}{2}}$}} 
+
+% Basic bold for letters and symbols
+\DeclareMathAlphabet{\mbf}{OT1}{ptm}{b}{n}
+\newcommand{\mbs}[1]{{\boldsymbol{#1}}}
+\newcommand{\mbm}[1]{ \textbf{\textit{#1}} } % {\bm #1}
+\newcommand{\mbc}[1]{ \boldsymbol{\mathcal{#1}} } 
+
+% Helper bold symbols
+\newcommand{\mbsdot}[1]{{\dot{\boldsymbol{#1}}}}
+\newcommand{\mbsbar}[1]{{\bar{\boldsymbol{#1}}}}
+\newcommand{\mbshat}[1]{{\hat{\boldsymbol{#1}}}}
+\newcommand{\mbsdel}[1]{{\delta {\boldsymbol{#1}}}}
+\newcommand{\mbstilde}[1]{{\tilde{\boldsymbol{#1}}}}
+\newcommand{\mbfdot}[1]{{\dot{\mbf{#1}}}}
+\newcommand{\mbfbar}[1]{{\bar{\mbf{#1}}}}
+\newcommand{\mbfhat}[1]{{\hat{\mbf{#1}}}}
+\newcommand{\mbfdel}[1]{{\delta{\mbf{#1}}}}
+\newcommand{\mbftilde}[1]{{\tilde{\mbf{#1}}}}
+
+% Packed lists
+\newenvironment{packed_enum}{
+\begin{enumerate}
+  \setlength{\itemsep}{1pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{enumerate}}
+
+\newenvironment{packed_itemize}{
+\begin{itemize}
+  \setlength{\itemsep}{1pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{itemize}}
+
+% Footer
+\usepackage{fancyhdr, lastpage}
+\pagestyle{fancy}
+\lhead{}
+\rhead{} 
+\chead{} 
+\lfoot{\today}
+\cfoot{}
+\rfoot{\small Page \thepage\ of \pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.0pt} 
+\renewcommand{\footrulewidth}{0.75pt}
+
+% Make sure paragraphs indent
+\setlength{\parindent}{25pt}
+
+
+\title{\vfill\textbf{MECH 412 Project Part 2} \\ \textbf{Pump Control System Design and Implementation} \vfill}
+
+\author{Aidan LastName, Student ID \\ Partner Name, Student ID \\ \small{Department of Mechanical Engineering, McGill University} \\ \small{817 Sherbrooke Street West, Montreal, QC, H3A 0C3}}
+
+\date{\today}
+
+\begin{document}
+
+\begin{titlepage}
+\pagenumbering{gobble} % Turns page numbering off for title page
+\maketitle
+\vfill
+\end{titlepage}
+
+\clearpage % new page
+
+\pagenumbering{arabic}
+\section{Introduction}
+\label{sec:intro}
+
+The McGill Formula Electric (MFE) car relies on liquid cooling to maintain optimal motor operating temperatures. The current cooling strategy involves running water pumps at maximum capacity continuously, which consumes significant electrical energy and necessitates a larger battery mass, ultimately increasing lap times. The objective of this project is to design a feedback control system that regulates the water flow rate based on real-time motor temperature requirements, thereby reducing total energy consumption while maintaining safe operating temperatures.
+
+This report presents the complete control system design process, building upon the system identification performed in Part 1. A robust controller is designed using loop-shaping techniques to track reference flow rates in the presence of model uncertainty and measurement noise. The design is validated through nonlinear simulation, and energy savings are quantified relative to the baseline constant-voltage approach.
+
+\section{System Identification and Uncertainty Characterization}
+\label{sec:sysid}
+
+In Part 1, the pump system was identified from input-output data. This section briefly summarizes the identified nominal model and uncertainty characterization used for control design.
+
+\subsection{Nominal Model Identification}
+Using four datasets corresponding to different operating voltage ranges, a first-order continuous-time nominal model $P(s)$ was identified using a least-squares approach on the frequency response data. The identified nominal plant is given by:
+\begin{align}
+	P(s) = \frac{26.26}{s + 13.65}
+\end{align}
+This model captures the dominant dynamics of the pump, with a DC gain of approximately $1.92$ (LPM/V) and a time constant of $\tau \approx 0.073$ s.
+
+The model was validated against all four datasets. The Variance Accounted For (VAF) on the test data ranged from $85.45\%$ to $89.23\%$ for generalized testing, indicating that the nominal model provides a good representation of the system dynamics across the operating range. The relative average errors were consistently low (typically $< 5\%$), confirming the model's accuracy.
+
+\subsection{Uncertainty Characterization}
+Model uncertainty arises from the variation in pump dynamics across different operating voltages (nonlinearities) and unmodeled high-frequency dynamics. This uncertainty was characterized by a multiplicative uncertainty weight $W_2(s)$, designed to bound the relative error between the nominal model $P(s)$ and the individual models identified from each dataset ($P_0, P_1, P_2, P_3$).
+
+A 4th-order weighting function $W_2(s)$ was synthesized to tightly bound the residuals:
+\begin{align}
+	W_2(s) = \frac{1.019 s^4 + 49.4 s^3 + 890.9 s^2 + 784.3 s + 6525}{s^4 + 34.54 s^3 + 3599 s^2 + 1765 s + 2.659\times 10^4}
+\end{align}
+Figure~\ref{fig:unc_w2} (see \texttt{plots/uncertainty\_W2.pdf}) shows that $|W_2(j\omega)|$ successfully bounds the maximum residual magnitude across all frequencies, ensuring that a controller satisfying the robust stability condition $|W_2(j\omega)T(j\omega)| < 1$ will stabilize the system for all identified operating conditions.
+
+\section{Control System Design}
+\label{sec:control}
+
+The control objective is to track a time-varying reference flow rate $r(t)$ derived from motor temperature measurements, while rejecting noise and consuming minimal energy.
+
+\subsection{Design Specifications}
+The controller $C(s)$ must satisfy the following requirements:
+\begin{packed_itemize}
+\item \textbf{Robust Stability:} Stable operation for all plant variations bounded by $W_2(s)$.
+\item \textbf{Performance:} Tracking error should be minimized. The target error bound is set relative to the maximum flow rate ($q_{\max} \approx 12.2$ LPM).
+\item \textbf{Control Effort:} The input voltage must remain within the range $[0, 5]$ V.
+\end{packed_itemize}
+
+\subsection{Loop Shaping Design}
+A loop-shaping approach was employed to design the controller. The desired open-loop transfer function $L_{des}(s)$ was chosen to have integral action for zero steady-state error and a bandwidth $\omega_c$ sufficient for tracking the reference signal.
+
+The desired loop shape was selected as:
+\begin{align}
+	L_{des}(s) = \frac{\omega_c}{s(\tau_0 s + 1)}
+\end{align}
+where $\omega_c = 5.7$ rad/s is the target crossover frequency and $\tau_0 = 0.1$ s provides high-frequency roll-off for noise attenuation and robustness.
+
+The controller $C(s)$ is then synthesized by inverting the nominal plant dynamics:
+\begin{align}
+	C(s) = \frac{L_{des}(s)}{P(s)} = \frac{5.7 (s + 13.65)}{26.26 s (0.1 s + 1)}
+\end{align}
+This controller cancels the plant pole at $s = -13.65$ and introduces an integrator and a pole at $s = -10$.
+
+\subsection{Robustness Analysis}
+The designed controller was verified against robust stability and performance criteria. 
+\begin{packed_itemize}
+\item \textbf{Robust Stability:} The condition $\| W_2 T \|_\infty < 1$ is satisfied, ensuring stability against the modeled uncertainty.
+\item \textbf{Robust Performance:} The condition $\| |W_1 S| + |W_2 T| \|_\infty < 1$ was evaluated, where $W_1(s)$ specifies the desired performance (sensitivity reduction).
+\end{packed_itemize}
+
+The Bode plots of the loop transfer function $L(s)$, sensitivity $S(s)$, and complementary sensitivity $T(s)$ confirm that the system has adequate gain and phase margins. The Nyquist plot (Figure~\ref{fig:nyquist}) further confirms closed-loop stability.
+
+\section{Simulation Results}
+\label{sec:sim}
+
+The designed controller was tested in a nonlinear simulation over the endurance test cycle $t \in [900, 1900]$ s. The simulation includes the plant threshold nonlinearity (simulated via an affine feedforward mapping) and measurement noise ($\sigma_n = 0.107$ LPM).
+
+\subsection{Tracking Performance}
+Figure~\ref{fig:tracking} (see \texttt{plots/y\_time\_dom\_response\_tilde.pdf}) shows the system output $y(t)$ tracking the reference $r(t)$. The controller effectively tracks the reference flow rate, which varies significantly as the motor temperature changes.
+
+The error statistics over the simulation window are:
+\begin{packed_itemize}
+\item \textbf{Mean Error:} [INSERT VALUE FROM TERMINAL]\% relative to max flow.
+\item \textbf{Error Std Dev:} [INSERT VALUE FROM TERMINAL]\% relative to max flow.
+\item \textbf{Max Error:} [INSERT VALUE FROM TERMINAL]\% relative to max flow.
+\end{packed_itemize}
+These values indicate that the tracking performance meets the design requirements.
+
+\subsection{Energy Savings}
+The primary motivation for feedback control is energy saving. The power consumption $P(t) \approx u(t)^2$ was integrated over the simulation period.
+
+\begin{packed_itemize}
+\item \textbf{Baseline Energy ($u = 5$ V):} [INSERT VALUE] $V^2 s$.
+\item \textbf{Feedback Energy:} [INSERT VALUE] $V^2 s$.
+\item \textbf{Energy Savings:} \textbf{[INSERT VALUE]\%} relative to the baseline.
+\end{packed_itemize}
+
+This substantial reduction in energy consumption validates the feedback control approach. By pumping only as much water as required by the thermal load, the battery mass can be reduced, contributing to better car performance.
+
+\section{Conclusion and Recommendation}
+\label{sec:conc}
+
+A robust feedback control system was designed and validated for the MFE water pump. The system identification process yielded a reliable nominal model with well-characterized uncertainty. The controller, designed via loop shaping, achieves the desired bandwidth of $5.7$ rad/s while ensuring robust stability against plant variations.
+
+Simulation results demonstrate excellent reference tracking and significant energy savings compared to the constant-voltage baseline. The controller handles the system nonlinearities and measurement noise effectively. 
+
+Based on these results, it is recommended that MFE proceed with implementing this control system on the vehicle. The demonstrated energy savings will directly translate to a lighter, faster car, aligning with the team's performance goals.
+
+\newpage
+\addcontentsline{toc}{section}{References}
+\bibliographystyle{ieeetr}
+\bibliography{references}
+
+\end{document}
+

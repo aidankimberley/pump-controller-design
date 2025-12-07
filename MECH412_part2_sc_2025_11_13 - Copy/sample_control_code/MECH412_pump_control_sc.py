@@ -13,9 +13,16 @@ import control
 
 # Custom packages
 import siso_rob_perf as srp
+import pathlib
 
 # %%
 # Plotting parameters
+# Set up plots directory
+plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
+plots_dir.mkdir(exist_ok=True)
+
+# Get the directory where this script is located
+script_dir = pathlib.Path(__file__).parent
 # plt.rc('text', usetex=True)
 # plt.rc('font', family='serif', size=14)
 plt.rc('lines', linewidth=2)
@@ -53,19 +60,24 @@ w_shared_2 = np.logspace(w_shared_low_2, w_shared_high_2, N_w_2)
 # Uncertainty weight
 # Dummy uncertainty weight! You must change!
 W2 = control.TransferFunction(
-    [1.016, 30.35, 236.9, 172.1],
-    [1, 12.46, 912.1, 662.9]
+    [1.019, 49.4, 890.9, 784.3, 6525],
+    [1, 34.54, 3599, 1765, 2.659e+04]
 )
+# W2 = control.TransferFunction(
+#     [1.006, 42.29, 530.4, 4749, 1.171e4],
+#     [1, 40.4, 804.8, 7099, 4.725e4]
+# )
 W2_inv = 1 / W2
 print("W_2(s) = ", W2)
 
 # Nominal model, which is NOT normalized, and has units of LPM / V.
 m, n = 0, 1
 P_tilde = control.TransferFunction([26.26], [1, 13.65])
-q_max = 2.437
-DC_gain = P_tilde.dcgain()
+DC_gain = P_tilde.dcgain() 
+print("DC gain = ", DC_gain)
 max_V = 5
-max_LPM = q_max*max_V  # Dummy value. You must change. 
+slope = 2.437 #From step response data
+max_LPM = max_V * slope  # Dummy value. You must change. 
 
 P = P_tilde  # The ``tilde" means ``with units". This sample code has not done any normalization. 
 
@@ -85,15 +97,36 @@ P_off_nom = [P * (1 + W2 * Delta[i]) for i in range(len(Delta))]
 # %%
 # Performance
 
+#normalization constants:
+SD_noise = 0.107 #LPM
+
+e_nor_r = 0.05 * max_LPM #LPM
+n_nor = SD_noise #LPM
+e_nor_n = n_nor #LPM
+r_nor = max_LPM #LPM
+u_nor_r = max_V #V
+u_nor_n = 0.02*max_V #V # TODO: MAYBE CHANGE THIS
+
+
+
 # Dummy values. You must change everything here!
 #Get this from fft of reference
 w_r_h_Hz = 0.03  # Hz
 
 # Noise and reference bounds
-gamma_n, w_n_l = 10**(-20/20), Hz2rps(w_r_h_Hz * 100)
-gamma_r, w_r_h = 1, Hz2rps(w_r_h_Hz)
-gamma_u, w_u_l = 10**(-10/20), w_r_h
-gamma_d, w_d_h = 1, w_r_h / 10
+# gamma_n, w_n_l = e_nor_n/e_nor_r, Hz2rps(w_r_h_Hz * 100)
+# gamma_r, w_r_h = 1, Hz2rps(w_r_h_Hz)
+# gamma_u, w_u_l = u_nor_r/u_nor_n, w_r_h
+# gamma_d, w_d_h = 1, w_r_h / 10 #TODO: MAYBE CHANGE THIS
+
+#gamma_n = e_nor_n/n_nor
+
+gamma_n, w_n_l = e_nor_n/n_nor, Hz2rps(w_r_h_Hz * 100)
+gamma_r, w_r_h = e_nor_r/r_nor, Hz2rps(w_r_h_Hz)
+gamma_u, w_u_l = e_nor_r*u_nor_n/n_nor/u_nor_r, Hz2rps(w_r_h_Hz*105)
+gamma_d, w_d_h = 1, w_r_h / 10 #TODO: MAYBE CHANGE THIS
+
+
 
 # Set up design specifications plot
 w_r = np.logspace(w_shared_low, np.log10(w_r_h), 100)
@@ -118,16 +151,15 @@ W1_inv = 1 / W1
 
 # %%
 # Plot both weights, W1 and W2 (and their inverses).
-
 fig, ax = srp.bode_mag_W1_W2(W1, W2, w_d_h, w_n_l, w_shared, Hz = True)
 fig.set_size_inches(height * gr, height, forward=True)
 ax.legend(loc='upper right')
-# fig.savefig('x.pdf')
+fig.savefig(plots_dir / 'bode_W1_W2.pdf')
 
 fig, ax = srp.bode_mag_W1_inv_W2_inv(W1, W2, gamma_r, w_r_h, w_d_h, gamma_n, w_n_l, w_shared_low, w_shared_high, w_shared, Hz = True)
 fig.set_size_inches(height * gr, height, forward=True)
 ax.legend(loc='lower right')
-# fig.savefig('x.pdf')
+fig.savefig(plots_dir / 'bode_W1_inv_W2_inv.pdf')
 
 
 # %%
@@ -135,33 +167,34 @@ ax.legend(loc='lower right')
 wmin, wmax, N_w_robust_nyq = np.log10(Hz2rps(10**(-4))), np.log10(Hz2rps(10**(4))), 1000
 count, fig, ax = srp.robust_nyq(P, P_off_nom, W2, wmin, wmax, N_w_robust_nyq)
 fig.tight_layout()
-# fig.savefig('x.pdf')
+fig.savefig(plots_dir / 'robust_nyquist.pdf')
 
 # %%
 # Control design.
-
 # Dummy controller, you must change!
-w_c = 1
-w_c = np.sqrt(w_n_l * w_d_h)*1
-print('w_c:', w_c)
-tau_0 = 0.7
-tau_1 = 0.1
-tau_2 = 0.01
+#w_c = np.sqrt(w_n_l * w_d_h)*1
 
-L_des = w_c/s * (1/(tau_0*s+1) * 1/(tau_1*s+1) * 1/(tau_2*s+1))
+tau_0 = 0.1
+tau_1 = 0.01
+tau_2 = 0.01
+w_c = 5.7
+#L_des = w_c/s * (1/s * (tau_1*s+1))
+L_des = w_c/ (s*(tau_0*s+1))
+print("L_des = ", L_des)
+
 
 C = L_des / P
 print("C = ", C, "\n")
 
-fig_L, ax = srp.bode_mag_L(P, C, gamma_r, w_r_h, gamma_n, w_n_l, w_shared_low, w_shared_high, w_shared, Hz = True)
+fig_L, ax = srp.bode_mag_L(P, C, gamma_r, w_r_h, gamma_n, w_n_l, w_shared_low, w_shared_high, w_shared, Hz = False)
 fig_L.set_size_inches(height * gr, height, forward=True)
 ax.legend(loc='lower left')
 
-fig_RP, ax = srp.bode_mag_rob_perf(P, C, W1, W2, w_shared, Hz = True)
+fig_RP, ax = srp.bode_mag_rob_perf(P, C, W1, W2, w_shared, Hz = False)
 fig_RP.set_size_inches(height * gr, height, forward=True)
 ax.legend(loc='lower left')
 
-fig_RP_RD, ax = srp.bode_mag_rob_perf_RD(P, C, W1, W2, w_shared, Hz = True)
+fig_RP_RD, ax = srp.bode_mag_rob_perf_RD(P, C, W1, W2, w_shared, Hz = False)
 fig_RP_RD.set_size_inches(height * gr, height, forward=True)
 ax.legend(loc='upper right')
 
@@ -203,16 +236,16 @@ count, contour = control.nyquist_plot(control.minreal(P * C),
 # ax_Nyquist.axis('equal')
 fig_Nyquist.tight_layout()
 
-# fig_L.savefig('temp_L_C1.pdf')
-# fig_RP.savefig('RP_C1.pdf')
-# fig_RP_RD.savefig('RP_RD_C1.pdf')
-# fig_S_T_W1_inv_W2_inv.savefig('S_T_weights_C1.pdf')
-# fig_S_T.savefig('temp_S_T_C1.pdf')
-# fig_L_P.savefig('temp_L_P_C1.pdf')
-# fig_L_P_C.savefig('temp_L_P_C_C1.pdf')
-# fig_margins.savefig('temp_margins_C1.pdf')
-# fig_Gof4.savefig('temp_Gof4_C1.pdf')
-# fig_Nyquist.savefig('temp_Nyquist_C1.pdf')
+fig_L.savefig(plots_dir / 'bode_L.pdf')
+fig_RP.savefig(plots_dir / 'robust_performance.pdf')
+fig_RP_RD.savefig(plots_dir / 'robust_performance_RD.pdf')
+fig_S_T_W1_inv_W2_inv.savefig(plots_dir / 'S_T_weights.pdf')
+fig_S_T.savefig(plots_dir / 'S_T.pdf')
+fig_L_P.savefig(plots_dir / 'L_P.pdf')
+fig_L_P_C.savefig(plots_dir / 'L_P_C.pdf')
+fig_margins.savefig(plots_dir / 'margins.pdf')
+fig_Gof4.savefig(plots_dir / 'Gof4.pdf')
+fig_Nyquist.savefig(plots_dir / 'nyquist.pdf')
 
 
 
@@ -221,7 +254,7 @@ fig_Nyquist.tight_layout()
 # Reference
 
 data = np.loadtxt(
-    "RL_temp_motor_mod.csv",
+    script_dir / "RL_temp_motor_mod.csv",
     dtype=float,
     delimiter=',',
     skiprows=1,
@@ -260,7 +293,7 @@ ax.plot(t, temp_raw)
 ax.set_xlabel(r'$t$ (s)')
 ax.set_ylabel(r'Temperature (°C)')
 fig.tight_layout()
-# fig.savefig('x.pdf')
+fig.savefig(plots_dir / 'temperature_raw.pdf')
 
 # --- Fix FFT code ---
 import numpy.fft as npfft
@@ -292,7 +325,7 @@ ax_fft.set_xlabel(r'$\omega$ (rad/s)')
 ax_fft.set_ylabel(r'FFT Magnitude')
 ax_fft.set_title('Temperature Profile Frequency Content (zero DC removed)')
 fig_fft.tight_layout()
-# fig_fft.savefig('temp_profile_fft.pdf')
+fig_fft.savefig(plots_dir / 'temp_profile_fft.pdf')
 
 
 
@@ -319,13 +352,12 @@ ax.plot(t, temp_norm)
 ax.set_xlabel(r'$t$ (s)')
 ax.set_ylabel(r'Normalized Temperature (unitless)')
 fig.tight_layout()
+fig.savefig(plots_dir / 'temperature_normalized.pdf')
 
-# Max flowrate
-v_max = 5 #V
-q_max  = v_max * 2.61 #LPM
+
 
 # Convert temp into a reference LPM
-r_raw_tilde = temp_norm * q_max
+r_raw_tilde = temp_norm * max_LPM
 
 # Now filter using w_r_h
 a = w_r_h
@@ -342,13 +374,13 @@ ax.set_ylabel(r'$r(t)$ (LPM)')
 ax.plot(t, r, '--', label='$r(t)$', color='C3')
 ax.legend(loc='upper right')
 fig.tight_layout()
-plt.show()
-# fig.savefig('x.pdf')
+fig.savefig(plots_dir / 'reference.pdf')
+#plt.show()
 
 # Noise
 np.random.seed(123321)
 noise_raw = np.random.normal(0, 1, t.shape[0])
-sigma_n = 0.25  # LPM, dummy value. You must change. 
+sigma_n = SD_noise  # LPM, dummy value. You must change. 
 noise =  sigma_n * noise_raw * 1  # Change the 1 to a zero to ``turn off" noise in order to debug. 
 
 
@@ -513,7 +545,7 @@ ax[1].plot(t, u_nor_ref * np.ones(t.shape[0],), '--', label=r'$u_{nor, r}$', col
 ax[0].legend(loc='lower right')
 ax[1].legend(loc='lower right')
 fig.tight_layout()
-# fig.savefig('y_u_time_dom_response_tilde.pdf')
+fig.savefig(plots_dir / 'y_u_time_dom_response_tilde.pdf')
 
 # Plot
 fig, ax = plt.subplots(figsize=(height * gr, height))
@@ -523,7 +555,7 @@ ax.plot(t, y_tilde, '-', label=r'$\tilde{y}(t)$', color='C0')
 ax.plot(t, r_tilde, '--', label=r'$\tilde{r}(t)$', color='C3')
 ax.legend(loc='best')
 fig.tight_layout()
-# fig.savefig('y_time_dom_response_tilde.pdf')
+fig.savefig(plots_dir / 'y_time_dom_response_tilde.pdf')
 
 # Plot
 fig, ax = plt.subplots(figsize=(height * gr, height))
@@ -534,7 +566,7 @@ ax.plot(t, e_nor_ref * np.ones(t.shape[0],), '--', label=r'$e_{nor, r}$', color=
 ax.plot(t, -e_nor_ref * np.ones(t.shape[0],), '--', color='C6')
 ax.legend(loc='upper right')
 fig.tight_layout()
-# fig.savefig('e_time_dom_response_tilde.pdf')
+fig.savefig(plots_dir / 'e_time_dom_response_tilde.pdf')
 
 # Plot
 fig, ax = plt.subplots(2, 1, figsize=(height * gr, height))
@@ -551,7 +583,7 @@ ax[1].plot(t, u_nor_ref * np.ones(t.shape[0],), '--', label=r'$u_{nor, r}$', col
 ax[0].legend(loc='lower right')
 ax[1].legend(loc='lower right')
 fig.tight_layout()
-# fig.savefig('u_e_time_dom_response_tilde.pdf')
+fig.savefig(plots_dir / 'u_e_time_dom_response_tilde.pdf')
 
 
 
@@ -569,7 +601,7 @@ ax.set_xlabel(r'$t$ (s)')
 ax.plot(t, power, '-', label=r'$P(t)$', color='C0')
 ax.legend(loc='best')
 fig.tight_layout()
-# fig.savefig('power_fb_vs_time.pdf')
+fig.savefig(plots_dir / 'power_fb_vs_time.pdf')
 
 # Integrate using Simpson's rule to get total ``energy" in units of V^2 s
 energy = integrate.simpson(power, x=t)
@@ -605,6 +637,6 @@ print("The max control effort relative to the max control input is", np.max(u_ti
 
 # %%
 # Plot
-plt.show()
+#plt.show()
 
 # %%

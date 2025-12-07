@@ -13,6 +13,9 @@ from matplotlib import pyplot as plt
 # from scipy import integrate
 import pathlib
 
+# Set up plots directory
+plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
+plots_dir.mkdir(exist_ok=True)
 
 # %%
 # Plotting parameters
@@ -98,6 +101,7 @@ for i in range(N_data):  # N_data
     ax[0].set_ylabel(r'$\tilde{u}(t)$ (V)')
     ax[1].set_ylabel(r'$\tilde{y}(t)$ (LPM)')
     fig.tight_layout()
+    fig.savefig(plots_dir / f'time_domain_{i}.pdf')
 
     # Compute and plot PSD of y
     from scipy.signal import welch
@@ -123,7 +127,7 @@ for i in range(N_data):  # N_data
     plt.title(f'Power Spectral Density of y (Dataset {i}) (t > 5s)')
     plt.grid(True, which='both', ls='--')
     plt.tight_layout()
-
+    plt.savefig(plots_dir / f'psd_{i}.pdf')
 #avg SD
 SD_avg = np.mean(SD_arr)
 print("average standard deviation: ", SD_avg)
@@ -139,11 +143,11 @@ print("Linear regression constant (k) relating y = k*u: ", k[0])
 # Plot the regression results
 plt.figure()
 plt.plot(u_arr, y_arr, 'o', label='Data (u, y)')
-u_line = np.linspace(min(u_arr), max(u_arr), 100)
+u_line = np.linspace(0, 5, 100)
 y_fit = k[0] * u_line
 plt.plot(u_line, y_fit, '-', label=f'Fit: y = {k[0]:.3f}*u')
 plt.xlabel('u')
 plt.ylabel('y')
 plt.title('Linear Regression: y = k*u')
 plt.legend()
-plt.show()
+plt.savefig(plots_dir / 'linear_regression.pdf')

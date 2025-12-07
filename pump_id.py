@@ -4,6 +4,10 @@ import numpy as np
 import control
 from matplotlib import pyplot as plt
 import pathlib
+
+# Set up plots directory
+plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
+plots_dir.mkdir(exist_ok=True)
 # Custom libraries 
 import d2c 
 '''
@@ -240,10 +244,16 @@ def test_error(Pd_ID, data, plot=False, test_indices=[0,1,2,3]):
                 a.set_xlabel(r'$t$ (s)')
                 a.legend(loc='upper right')
             fig.tight_layout()
+            fig.savefig(plots_dir / f'dataset_{i}_test_error.pdf')
             plt.show()
         
         error = yd_ID_test - y_test_centered
         y_max_dataset = np.max(np.abs(y_test_centered))
+        #get %VAF
+        var_e = 1/len(error)*np.sum(error**2)
+        var_y = 1/len(error)*np.sum(y_test_centered**2)
+        VAF = 1 - var_e/var_y
+        print(f"Dataset {i}: %VAF = {VAF*100:.2f}%")
         print(f"Dataset {i}: abs avg error = {np.mean(np.abs(error)):.4f}, rel avg error = {np.mean(np.abs(error/y_max_dataset))*100:.2f}%")
 
 def create_hf_offnominal(Pc_base, omega_n, zeta=0.3):
@@ -307,10 +317,10 @@ print("Pc_ID0 = ", Pc_ID0)
 
 
 #Test Generalization (each dataset centered around its own mean)
-test_error(Pd_ID3, data, plot=True)
-test_error(Pd_ID2, data, plot=True)
-test_error(Pd_ID1, data, plot=True)
-test_error(Pd_ID0, data, plot=True)
+# test_error(Pd_ID3, data, plot=True)
+# test_error(Pd_ID2, data, plot=True)
+# test_error(Pd_ID1, data, plot=True)
+# test_error(Pd_ID0, data, plot=True)
 
 #%%
 #plot bode plots of all datasets on same plot using Pc_ID3,2,1,0
@@ -343,6 +353,7 @@ ax[1].set_title("Phase Bode Plot of Pc_ID3,2,1,0")
 ax[0].legend(loc='upper right')
 ax[1].legend(loc='upper right')
 fig.tight_layout(pad=2.0)  # Add some vertical space to prevent overlapping
+fig.savefig(plots_dir / 'bode_all_datasets.pdf')
 plt.show()
 
 # %%
@@ -403,13 +414,23 @@ test_error(Pd_nominal, data, plot=True)
 # Pc_ID7 is now the nominal plant multiplied by a lowpass filter with cutoff at 10 rad/s
 #Pc_ID7 = Pc_nominal * control.TransferFunction([10], [1, 10])
 # Create family of HF off-nominal models
-Pc_hf1 = create_hf_offnominal(Pc_ID0, omega_n=30, zeta=0.2)
-Pc_hf2 = create_hf_offnominal(Pc_ID1, omega_n=50, zeta=0.15)
-Pc_hf3 = create_hf_offnominal(Pc_ID2, omega_n=80, zeta=0.1)
+Pc_hf1 = create_hf_offnominal(Pc_nominal, omega_n=60, zeta=0.3)
+
+test_error(Pc_hf1, data, plot=True)
+
+Pc_hf2 = create_hf_offnominal(Pc_ID1, omega_n=20, zeta=0.9)
+Pc_hf3 = create_hf_offnominal(Pc_ID2, omega_n=20, zeta=0.9)
+Pc_hf4 = create_hf_offnominal(Pc_ID3, omega_n=20, zeta=0.9)
+
+# test_error(Pc_hf1, data, plot=True)
+# test_error(Pc_hf2, data, plot=True)
+# test_error(Pc_hf3, data, plot=True)
+# test_error(Pc_hf4, data, plot=True)
 
 # Include in your uncertainty set
-P_off_nom = [Pc_ID0, Pc_ID1, Pc_ID2, Pc_ID3, Pc_hf1, Pc_hf2, Pc_hf3]
-Pc_ID7 = Pc_hf2
+P_off_nom = [Pc_ID0, Pc_ID1, Pc_ID2, Pc_ID3, Pc_hf1]#, Pc_hf2]#, Pc_hf3, Pc_hf4]# Pc_hf2, Pc_hf3]
+Pc_ID7 = Pc_hf1
+
 print("Pc_ID7 = ", Pc_ID7)
 #Pc_ID4, Pd_ID4 = get_tf(data,n+1,m+1,[0])
 #Pc_ID5, Pd_ID5 = get_tf(data,n+2,m+2,[0])
@@ -464,9 +485,10 @@ ax[1].set_title("Phase Bode Plot of Pc_ID3,2,1,0 and Pc_nominal")
 ax[0].legend(loc='upper right')
 ax[1].legend(loc='upper right')
 fig.tight_layout(pad=2.0)  # Add some vertical space to prevent overlapping
+fig.savefig(plots_dir / 'bode_nominal_and_datasets.pdf')
 plt.show()
 
-# %%
+
 
 #%%
 #plot the residuals
@@ -489,6 +511,7 @@ plt.legend(loc='upper right')
 plt.xlabel(r'$\omega$ (rad/s)')
 plt.ylabel(r'$\Delta P_c(j\omega)$ (dB)')
 plt.title("Magnitude of Residuals of Pc_ID3,2,1,0")
+plt.savefig(plots_dir / 'residuals_magnitude.pdf')
 plt.show()
 
 #%%
@@ -500,7 +523,7 @@ P = Pc_nominal
 #generate higher order off nominal models
 
 
-P_off_nom  = [Pc_ID0, Pc_ID1, Pc_ID2, Pc_ID3, Pc_ID7]
+#P_off_nom  = [Pc_ID0, Pc_ID1, Pc_ID2, Pc_ID3, Pc_ID7]
 
 N = len(P_off_nom)
 R = unc_bound.residuals(P, P_off_nom)
@@ -538,14 +561,14 @@ ax[0].semilogx(w_shared, mag_max_dB, '-', color='C4', label='upper bound')
 ax[1].semilogx(w_shared, mag_max_abs, '-', color='C4', label='upper bound')
 ax[0].legend(loc='best')
 ax[1].legend(loc='best')
-# fig.savefig(path.joinpath('1st_order_unstable_R.pdf'))
+fig.savefig(plots_dir / 'residuals_upper_bound.pdf')
 
 
 # %%
 # Find W2
 
 # Order of W2
-nW2 = 3
+nW2 = 4
 
 # Calculate optimal upper bound transfer function.
 W2 = (unc_bound.upperbound(omega=w_shared, upper_bound=mag_max_abs, degree=nW2)).minreal()
@@ -582,7 +605,7 @@ ax[0].semilogx(w_shared, mag_W2_dB, '-', color='seagreen', label='optimal bound'
 ax[1].semilogx(w_shared, mag_W2_abs, '-', color='seagreen', label='optimal bound')
 ax[0].legend(loc='best')
 ax[1].legend(loc='best')
-# fig.tight_layout()
-# fig.savefig(path.joinpath('1st_order_unstable_W2.pdf'))
+fig.tight_layout()
+fig.savefig(plots_dir / 'uncertainty_W2.pdf')
 plt.show()
 # %%
