@@ -5,7 +5,7 @@ import control
 from matplotlib import pyplot as plt
 import pathlib
 # Custom libraries 
-import d2c
+import d2c 
 '''
 
 
@@ -72,6 +72,33 @@ m=0 #order of numerator
 
 #%%
 #Functions
+def standardize_data(data):
+    """
+    Standardize data by centering each dataset around its OWN mean (equilibrium).
+    
+    For perturbation modeling, each dataset should be centered around its own 
+    equilibrium point (per-dataset mean), not a global mean. This ensures the 
+    model captures perturbation dynamics that generalize across operating points.
+    """
+    # Create a COPY to avoid modifying original data
+    data_copy = data.copy()
+    
+    # Center each dataset around its OWN mean (equilibrium point)
+    for i in range(len(data)):
+        u_mean_i = np.mean(data[i][:, 1])
+        y_mean_i = np.mean(data[i][:, 2])
+        data_copy[i, :, 1] = data[i, :, 1] - u_mean_i
+        data_copy[i, :, 2] = data[i, :, 2] - y_mean_i
+    
+    # Find scaling factors (max of centered data across all datasets)
+    u_max = max(np.max(np.abs(data_copy[i][:, 1])) for i in range(len(data)))
+    y_max = max(np.max(np.abs(data_copy[i][:, 2])) for i in range(len(data)))
+    
+    # Normalize by max
+    data_copy[:, :, 1] /= u_max
+    data_copy[:, :, 2] /= y_max
+    
+    return data_copy, u_max, y_max
 
 def normalize_data(data):
     # Create a COPY to avoid modifying original data
@@ -143,10 +170,19 @@ def get_CT_tf(A, b, n, u_max, y_max, dt):
     Pc_ID = d2c.d2c(Pd_ID)
     return Pc_ID, Pd_ID, u_max, y_max
 
-def get_tf(data,n,m,training_data_sets):
+def get_tf(data,n,m,training_data_sets,standardize=True):
+    """
+    Identify transfer function from PRBS data.
+    
+    When standardize=True (default), each dataset is centered around its own mean
+    before identification. This is appropriate for perturbation modeling.
+    """
     dt = data[0, 1, 0] - data[0, 0, 0]
     print("dt = ",dt)
-    norm_data, u_max, y_max = normalize_data(data)
+    if standardize:
+        norm_data, u_max, y_max = standardize_data(data)
+    else:
+        norm_data, u_max, y_max = normalize_data(data)
     A_stacked = None
     b_stacked = None
     for i in training_data_sets:
@@ -164,30 +200,84 @@ def get_tf(data,n,m,training_data_sets):
     return Pc_ID, Pd_ID
 
 def test_error(Pd_ID, data, plot=False, test_indices=[0,1,2,3]):
+    """
+    Test the identified model on data.
+    
+    Each test dataset is centered around its OWN mean (equilibrium point),
+    matching the per-dataset centering used during training.
+    
+    Args:
+        Pd_ID: Discrete-time transfer function
+        data: All datasets
+        plot: Whether to plot results
+        test_indices: Which dataset indices to test on
+    """
     dt = data[0, 1, 0] - data[0, 0, 0]
     for i in test_indices:
         test_data = np.array(data[i])
         t = test_data[:, 0]
-        y_test = test_data[:, 2]
-        u_test = test_data[:, 1]
-        # Use discrete-time TF with the original unnormalized data
-        td_ID_test, yd_ID_test = control.forced_response(Pd_ID, t, u_test)
+        y_test = test_data[:, 2].copy()
+        u_test = test_data[:, 1].copy()
+        
+        # Center around THIS dataset's mean (its equilibrium point)
+        u_test_mean = np.mean(u_test)
+        y_test_mean = np.mean(y_test)
+        u_test_centered = u_test - u_test_mean
+        y_test_centered = y_test - y_test_mean
+        
+        # Use discrete-time TF with mean-centered data
+        td_ID_test, yd_ID_test = control.forced_response(Pd_ID, t, u_test_centered)
+        
         if plot:
             fig, ax = plt.subplots(2, 1)
-            ax[0].set_ylabel(r'$u(t)$ (V)')
-            ax[1].set_ylabel(r'$y(t)$ (LPM)')
-            ax[0].plot(t, u_test, '--', label='input', color='C0')
-            ax[1].plot(t, y_test, label='output', color='C1')
-            ax[1].plot(td_ID_test, yd_ID_test, '-.', label="IDed output", color='C2')
-            ax[0].set_title(f'Dataset {i}')
+            ax[0].set_ylabel(r'$\Delta u(t)$ (V)')
+            ax[1].set_ylabel(r'$\Delta y(t)$ (LPM)')
+            ax[0].plot(t, u_test_centered, '--', label='input (centered)', color='C0')
+            ax[1].plot(t, y_test_centered, label='output (centered)', color='C1')
+            ax[1].plot(td_ID_test, yd_ID_test, '-.', label="model output", color='C2')
+            ax[0].set_title(f'Dataset {i} (centered around its mean)')
             for a in np.ravel(ax):
                 a.set_xlabel(r'$t$ (s)')
                 a.legend(loc='upper right')
             fig.tight_layout()
             plt.show()
-        error = yd_ID_test - y_test
-        y_max_dataset = np.max(np.abs(y_test))
+        
+        error = yd_ID_test - y_test_centered
+        y_max_dataset = np.max(np.abs(y_test_centered))
         print(f"Dataset {i}: abs avg error = {np.mean(np.abs(error)):.4f}, rel avg error = {np.mean(np.abs(error/y_max_dataset))*100:.2f}%")
+
+def create_hf_offnominal(Pc_base, omega_n, zeta=0.3):
+    """
+    Create a stable higher-order off-nominal model by adding a 2nd-order
+    resonance to a stable 1st-order base model.
+    
+    This is useful for uncertainty modeling at high frequencies where you want
+    to capture unmodeled dynamics without introducing instability.
+    
+    The resulting model has:
+    - 3rd order denominator (1st order base + 2nd order resonance)
+    - Constant numerator (strictly proper)
+    - Guaranteed stable poles
+    
+    Args:
+        Pc_base: A stable 1st-order CT transfer function (e.g., K/(s+a))
+        omega_n: Natural frequency of the resonance (rad/s)
+        zeta: Damping ratio (0 < zeta < 1 for underdamped resonance)
+              Lower zeta = sharper resonance peak = more HF uncertainty
+    
+    Returns:
+        Pc_hf: A stable 3rd-order CT transfer function
+    
+    Example:
+        >>> Pc_base = control.tf([20], [1, 10])  # 20/(s+10)
+        >>> Pc_hf = create_hf_offnominal(Pc_base, omega_n=50, zeta=0.2)
+        >>> # Pc_hf is now 3rd order with resonance at 50 rad/s
+    """
+    # 2nd-order resonance: omega_n^2 / (s^2 + 2*zeta*omega_n*s + omega_n^2)
+    # This has unity DC gain, so it preserves low-frequency behavior
+    resonance = control.tf([omega_n**2], [1, 2*zeta*omega_n, omega_n**2])
+    return (Pc_base * resonance).minreal()
+
 '''
 print("Training on data set: ", training_data_sets)
 print("="*50)
@@ -202,22 +292,21 @@ print("="*50)
 test_error(Pd_ID, data, plot=True)
 '''
 #Test on datasets seperately
-num_arr = np.array([])
-den_arr = np.array([])
-Pc_ID3, Pd_ID3 = get_tf(data,n,m,[3])
-num_arr = np.append(num_arr, Pc_ID3.num[0])
-den_arr = np.append(den_arr, Pc_ID3.den[0][0][1])
-Pc_ID2, Pd_ID2 = get_tf(data,n,m,[2])
-num_arr = np.append(num_arr, Pc_ID2.num[0])
-den_arr = np.append(den_arr, Pc_ID2.den[0][0][1])
-Pc_ID1, Pd_ID1 = get_tf(data,n,m,[1])
-num_arr = np.append(num_arr, Pc_ID1.num[0])
-den_arr = np.append(den_arr, Pc_ID1.den[0][0][1])
-Pc_ID0, Pd_ID0 = get_tf(data,n,m,[0])
-num_arr = np.append(num_arr, Pc_ID0.num[0])
-den_arr = np.append(den_arr, Pc_ID0.den[0][0][1])
 
-#Test Generalization
+Pc_ID3, Pd_ID3 = get_tf(data,n,m,[3])
+print("Pc_ID3 = ", Pc_ID3)
+
+Pc_ID2, Pd_ID2 = get_tf(data,n,m,[2])
+print("Pc_ID2 = ", Pc_ID2)
+
+Pc_ID1, Pd_ID1 = get_tf(data,n,m,[1])
+print("Pc_ID1 = ", Pc_ID1)
+
+Pc_ID0, Pd_ID0 = get_tf(data,n,m,[0])
+print("Pc_ID0 = ", Pc_ID0)
+
+
+#Test Generalization (each dataset centered around its own mean)
 test_error(Pd_ID3, data, plot=True)
 test_error(Pd_ID2, data, plot=True)
 test_error(Pd_ID1, data, plot=True)
@@ -303,13 +392,29 @@ print("Pc_nominal = ", Pc_nominal)
 Pd_nominal = control.c2d(Pc_nominal, dt, method='zoh')
 print("Pd_nominal = ", Pd_nominal)
 
-#Test Generalization
+#Test Generalization (each dataset centered around its own mean)
 test_error(Pd_nominal, data, plot=True)
 
 # %%
 
 #%%
 #Bode with nominal model
+# Add a sharp cutoff frequency at 10 rad/s to the nominal model
+# Pc_ID7 is now the nominal plant multiplied by a lowpass filter with cutoff at 10 rad/s
+#Pc_ID7 = Pc_nominal * control.TransferFunction([10], [1, 10])
+# Create family of HF off-nominal models
+Pc_hf1 = create_hf_offnominal(Pc_ID0, omega_n=30, zeta=0.2)
+Pc_hf2 = create_hf_offnominal(Pc_ID1, omega_n=50, zeta=0.15)
+Pc_hf3 = create_hf_offnominal(Pc_ID2, omega_n=80, zeta=0.1)
+
+# Include in your uncertainty set
+P_off_nom = [Pc_ID0, Pc_ID1, Pc_ID2, Pc_ID3, Pc_hf1, Pc_hf2, Pc_hf3]
+Pc_ID7 = Pc_hf2
+print("Pc_ID7 = ", Pc_ID7)
+#Pc_ID4, Pd_ID4 = get_tf(data,n+1,m+1,[0])
+#Pc_ID5, Pd_ID5 = get_tf(data,n+2,m+2,[0])
+#Pc_ID6, Pd_ID6 = get_tf(data,n+3,m+3,[0])
+
 N = 1000
 w = np.linspace(0.01, 1000, N)
 
@@ -318,23 +423,39 @@ mag_Pc_ID2_bode = 20*np.log10(np.abs(Pc_ID2(1j*w)))
 mag_Pc_ID1_bode = 20*np.log10(np.abs(Pc_ID1(1j*w)))
 mag_Pc_ID0_bode = 20*np.log10(np.abs(Pc_ID0(1j*w)))
 mag_Pc_nominal_bode = 20*np.log10(np.abs(Pc_nominal(1j*w)))
+mag_Pc_ID7_bode = 20*np.log10(np.abs(Pc_ID7(1j*w)))
+# mag_Pc_ID4_bode = 20*np.log10(np.abs(Pc_ID4(1j*w)))
+# mag_Pc_ID5_bode = 20*np.log10(np.abs(Pc_ID5(1j*w)))
+# mag_Pc_ID6_bode = 20*np.log10(np.abs(Pc_ID6(1j*w)))
 phase_Pc_ID3_bode = np.angle(Pc_ID3(1j*w))
 phase_Pc_ID2_bode = np.angle(Pc_ID2(1j*w))
 phase_Pc_ID1_bode = np.angle(Pc_ID1(1j*w))
 phase_Pc_ID0_bode = np.angle(Pc_ID0(1j*w))
 phase_Pc_nominal_bode = np.angle(Pc_nominal(1j*w))
+phase_Pc_ID7_bode = np.angle(Pc_ID7(1j*w))
+# phase_Pc_ID4_bode = np.angle(Pc_ID4(1j*w))
+# phase_Pc_ID5_bode = np.angle(Pc_ID5(1j*w))
+# phase_Pc_ID6_bode = np.angle(Pc_ID6(1j*w))
 fig, ax = plt.subplots(2, 1)
 ax[0].semilogx(w, mag_Pc_ID3_bode, label='Pc_ID3')
 ax[0].semilogx(w, mag_Pc_ID2_bode, label='Pc_ID2')
 ax[0].semilogx(w, mag_Pc_ID1_bode, label='Pc_ID1')
 ax[0].semilogx(w, mag_Pc_ID0_bode, label='Pc_ID0')
 ax[0].semilogx(w, mag_Pc_nominal_bode, label='Pc_nominal')
+ax[0].semilogx(w, mag_Pc_ID7_bode, label='Pc_ID7')
+# ax[0].semilogx(w, mag_Pc_ID4_bode, label='Pc_ID4')
+# ax[0].semilogx(w, mag_Pc_ID5_bode, label='Pc_ID5')
+# ax[0].semilogx(w, mag_Pc_ID6_bode, label='Pc_ID6')
 ax[0].set_ylabel(r'$|P_c(j\omega)|$ (dB)')
 ax[1].semilogx(w, phase_Pc_ID3_bode, label='Pc_ID3')
 ax[1].semilogx(w, phase_Pc_ID2_bode, label='Pc_ID2')
 ax[1].semilogx(w, phase_Pc_ID1_bode, label='Pc_ID1')
 ax[1].semilogx(w, phase_Pc_ID0_bode, label='Pc_ID0')
 ax[1].semilogx(w, phase_Pc_nominal_bode, label='Pc_nominal')
+ax[1].semilogx(w, phase_Pc_ID7_bode, label='Pc_ID7')
+# ax[1].semilogx(w, phase_Pc_ID4_bode, label='Pc_ID4')
+# ax[1].semilogx(w, phase_Pc_ID5_bode, label='Pc_ID5')
+# ax[1].semilogx(w, phase_Pc_ID6_bode, label='Pc_ID6')
 ax[1].set_ylabel(r'$\angle P_c(j\omega)$ (rad)')
 ax[0].set_xlabel(r'$\omega$ (rad/s)')
 ax[1].set_xlabel(r'$\omega$ (rad/s)')
@@ -344,6 +465,7 @@ ax[0].legend(loc='upper right')
 ax[1].legend(loc='upper right')
 fig.tight_layout(pad=2.0)  # Add some vertical space to prevent overlapping
 plt.show()
+
 # %%
 
 #%%
@@ -373,7 +495,13 @@ plt.show()
 #Use DECAR unc_bound.py to compute uncertainty bounds
 import unc_bound
 P = Pc_nominal
-P_off_nom  = [Pc_ID0, Pc_ID1, Pc_ID2, Pc_ID3]
+
+
+#generate higher order off nominal models
+
+
+P_off_nom  = [Pc_ID0, Pc_ID1, Pc_ID2, Pc_ID3, Pc_ID7]
+
 N = len(P_off_nom)
 R = unc_bound.residuals(P, P_off_nom)
 mag_max_dB, mag_max_abs = unc_bound.residual_max_mag(R, w)
@@ -457,3 +585,4 @@ ax[1].legend(loc='best')
 # fig.tight_layout()
 # fig.savefig(path.joinpath('1st_order_unstable_W2.pdf'))
 plt.show()
+# %%
