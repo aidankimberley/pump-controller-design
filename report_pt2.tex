@@ -115,15 +115,31 @@ This report presents the complete control system design process, building upon t
 In Part 1, the pump system was identified from input-output data. This section briefly summarizes the identified nominal model and uncertainty characterization used for control design.
 
 \subsection{Nominal Model Identification}
-Using four datasets corresponding to different operating voltage ranges, a first-order continuous-time nominal model $P(s)$ was identified using a least-squares approach on the frequency response data. The identified nominal plant is given by:
+Using four datasets corresponding to different operating voltage ranges, a first-order continuous-time nominal model $P(s)$ was identified using a least-squares approach on standardized frequency response data. The identified nominal plant is given by:
 \begin{align}
 	P(s) = \frac{26.26}{s + 13.65}
 \end{align}
-This model captures the dominant dynamics of the pump, with a DC gain of approximately $1.92$ (LPM/V) and a time constant of $\tau \approx 0.073$ s.
 
 The model was validated against all four datasets. The Variance Accounted For (VAF) on the test data ranged from $85.45\%$ to $89.23\%$ for generalized testing, indicating that the nominal model provides a good representation of the system dynamics across the operating range. The relative average errors were consistently low (typically $< 5\%$), confirming the model's accuracy.
 
-Figure~\ref{fig:nominal_validation} shows the comparison between the nominal model response and the measured data for all four datasets in the frequency domain.
+This model captures the linearized dynamics associated with small perturbations to the pump. We are simulating a feedforward controller with two different transfer functions. The second is frequency-independent mapping from voltage to flow rate which was calculated using least squares on step response data. We found the following relationship.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.6\textwidth]{plots/linear_regression.pdf}
+	\caption{Linear regression of steady-state flow rate versus input voltage from step response data. The slope of $2.437$ LPM/V provides the feedforward mapping used in the simulation.}
+	\label{fig:regression}
+\end{figure}
+
+The slope of this regression gives us the relationship between voltage and flow rate which we found to be $2.437$ (LPM/V). This gives us our feedforward term in our simulation.
+
+
+\subsection{Uncertainty Characterization}
+
+
+
+
+Model uncertainty arises from the variation in pump dynamics across different operating voltages (nonlinearities) and unmodeled high-frequency dynamics. We forced a model of our plant to be second order simulating these unknown frequency dynamics. This uncertainty was characterized by a multiplicative uncertainty weight $W_2(s)$.
 
 \begin{figure}[ht]
 	\centering
@@ -132,14 +148,7 @@ Figure~\ref{fig:nominal_validation} shows the comparison between the nominal mod
 	\label{fig:nominal_validation}
 \end{figure}
 
-\subsection{Uncertainty Characterization}
-Model uncertainty arises from the variation in pump dynamics across different operating voltages (nonlinearities) and unmodeled high-frequency dynamics. This uncertainty was characterized by a multiplicative uncertainty weight $W_2(s)$, designed to bound the relative error between the nominal model $P(s)$ and the individual models identified from each dataset ($P_0, P_1, P_2, P_3$).
-
-A 4th-order weighting function $W_2(s)$ was synthesized to tightly bound the residuals:
-\begin{align}
-	W_2(s) = \frac{1.019 s^4 + 49.4 s^3 + 890.9 s^2 + 784.3 s + 6525}{s^4 + 34.54 s^3 + 3599 s^2 + 1765 s + 2.659\times 10^4}
-\end{align}
-Figure~\ref{fig:unc_w2} shows that $|W_2(j\omega)|$ successfully bounds the maximum residual magnitude across all frequencies, ensuring that a controller satisfying the robust stability condition $|W_2(j\omega)T(j\omega)| < 1$ will stabilize the system for all identified operating conditions.
+Figure~\ref{fig:nominal_validation} shows the comparison between the nominal model response and the measured data for all four datasets in the frequency domain.
 
 \begin{figure}[ht]
 	\centering
@@ -147,6 +156,14 @@ Figure~\ref{fig:unc_w2} shows that $|W_2(j\omega)|$ successfully bounds the maxi
 	\caption{Uncertainty characterization: The multiplicative uncertainty weight $W_2(s)$ (green) bounds the residuals (blue) between the nominal and off-nominal plants. The upper bound (purple) represents the maximum residual magnitude at each frequency.}
 	\label{fig:unc_w2}
 \end{figure}
+
+A 4th-order weighting function $W_2(s)$ was synthesized to tightly bound the residuals:
+\begin{align}
+	W_2(s) = \frac{1.019 s^4 + 49.4 s^3 + 890.9 s^2 + 784.3 s + 6525}{s^4 + 34.54 s^3 + 3599 s^2 + 1765 s + 2.659\times 10^4}
+\end{align}
+Figure~\ref{fig:unc_w2} shows that $|W_2(j\omega)|$ successfully bounds the maximum residual magnitude across all frequencies, ensuring that a controller satisfying the robust stability condition $|W_2(j\omega)T(j\omega)| < 1$ will stabilize the system for all identified operating conditions.
+
+
 
 \section{Control System Design}
 \label{sec:control}
@@ -174,7 +191,7 @@ The controller $C(s)$ is then synthesized by inverting the nominal plant dynamic
 \begin{align}
 	C(s) = \frac{L_{des}(s)}{P(s)} = \frac{5.15 s + 70.3}{2.626 s^2 + 26.26 s}
 \end{align}
-This controller cancels the plant pole at $s = -13.65$ and introduces an integrator and a pole at $s = -10$.
+
 
 \subsection{Robustness Analysis}
 The designed controller was verified against robust stability and performance criteria. 
@@ -197,6 +214,25 @@ These margins indicate robust stability with significant tolerance to phase and 
 	\subfigure[Nyquist Plot]{\label{fig:nyquist}\includegraphics[width=0.48\textwidth]{plots/nyquist.pdf}}
 	\caption{Control design analysis: (a) Bode magnitude plot of the open-loop transfer function $L(s)$, and (b) Nyquist plot showing closed-loop stability (no encirclements of -1).}
 	\label{fig:control_analysis}
+\end{figure}
+
+The robust stability and performance of the controller are verified through frequency-domain analysis. Figure~\ref{fig:robust_stability} shows the robust Nyquist plot, which demonstrates that the closed-loop system remains stable for all plant variations within the uncertainty bound $W_2(s)$.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.8\textwidth]{plots/robust_nyquist.pdf}
+	\caption{Robust Nyquist plot showing the closed-loop system remains stable for all off-nominal plants within the uncertainty bound.}
+	\label{fig:robust_stability}
+\end{figure}
+
+The robust performance condition $\| |W_1 S| + |W_2 T| \|_\infty < 1$ is verified in Figure~\ref{fig:robust_perf}, which shows that the weighted sensitivity and complementary sensitivity functions satisfy the design requirements across all frequencies.
+
+\begin{figure}[ht]
+	\centering
+	\subfigure[Robust Performance]{\label{fig:robust_perf}\includegraphics[width=0.48\textwidth]{plots/robust_performance.pdf}}
+	\subfigure[Sensitivity and Complementary Sensitivity]{\label{fig:S_T}\includegraphics[width=0.48\textwidth]{plots/S_T_weights.pdf}}
+	\caption{Robust performance analysis: (a) Verification that $\| |W_1 S| + |W_2 T| \|_\infty < 1$, and (b) Bode plots of weighted sensitivity $|W_1 S|$ and weighted complementary sensitivity $|W_2 T|$.}
+	\label{fig:robust_performance}
 \end{figure}
 
 \section{Simulation Results}

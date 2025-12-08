@@ -14,8 +14,8 @@ from matplotlib import pyplot as plt
 import pathlib
 
 # Set up plots directory
-# plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
-# plots_dir.mkdir(exist_ok=True)
+plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
+plots_dir.mkdir(exist_ok=True)
 
 # %%
 # Plotting parameters
@@ -101,7 +101,7 @@ for i in range(N_data):  # N_data
     ax[0].set_ylabel(r'$\tilde{u}(t)$ (V)')
     ax[1].set_ylabel(r'$\tilde{y}(t)$ (LPM)')
     fig.tight_layout()
-    # fig.savefig(plots_dir / f'time_domain_{i}.pdf')
+    fig.savefig(plots_dir / f'time_domain_{i}.pdf')
 
     # Compute and plot PSD of y
     from scipy.signal import welch
@@ -110,27 +110,54 @@ for i in range(N_data):  # N_data
     mask = t > 5
     y_for_psd = y_raw[mask]
     t_for_psd = t[mask]
-    if len(t_for_psd) > 1:
-        fs = 1.0 / (t_for_psd[1] - t_for_psd[0])  # Sampling frequency from time step
+    
+    # Check if we have enough data points after 5 seconds
+    if len(y_for_psd) > 10:  # Need at least 10 points for meaningful PSD
+        if len(t_for_psd) > 1:
+            fs = 1.0 / (t_for_psd[1] - t_for_psd[0])  # Sampling frequency from time step
+        else:
+            fs = 1.0  # fallback if insufficient points
+        print("fs: ", fs)
+        
+        # Ensure we have enough points for welch (needs at least nperseg points)
+        nperseg = min(1024, len(y_for_psd))
+        if nperseg >= 4:  # welch needs at least 4 points
+            f, Pxx = welch(y_for_psd, fs=fs, nperseg=nperseg)
+            # Get standard deviation of noise
+            if len(Pxx) > 0 and np.all(np.isfinite(Pxx)):
+                SD = np.sqrt(np.mean(Pxx) * (fs / 2))
+                SD_arr.append(SD)
+                print("standard dev: ", SD)
+                
+                # Plot PSD
+                fig_psd = plt.figure()
+                plt.semilogy(f, Pxx)
+                plt.xlabel('Frequency [Hz]')
+                plt.ylabel('PSD [$y^2$/Hz]')
+                plt.title(f'Power Spectral Density of y (Dataset {i}) (t > 5s)')
+                plt.grid(True, which='both', ls='--')
+                plt.tight_layout()
+                fig_psd.savefig(plots_dir / f'psd_{i}.pdf')
+                plt.close(fig_psd)
+            else:
+                print(f"Warning: Invalid PSD for dataset {i}, skipping")
+        else:
+            print(f"Warning: Insufficient points for PSD calculation in dataset {i}")
     else:
-        fs = 1.0  # fallback if insufficient points
-    print("fs: ", fs)
-    f, Pxx = welch(y_for_psd, fs=fs, nperseg=min(1024, len(y_for_psd)))
-    # Get standard deviation of noise
-    SD = np.sqrt(np.mean(Pxx) * (fs / 2))
-    SD_arr.append(SD)
-    print("standard dev: ", SD)
-    plt.figure()
-    plt.semilogy(f, Pxx)
-    plt.xlabel('Frequency [Hz]')
-    plt.ylabel('PSD [$y^2$/Hz]')
-    plt.title(f'Power Spectral Density of y (Dataset {i}) (t > 5s)')
-    plt.grid(True, which='both', ls='--')
-    plt.tight_layout()
-    # plt.savefig(plots_dir / f'psd_{i}.pdf')
-#avg SD
-SD_avg = np.mean(SD_arr)
-print("average standard deviation: ", SD_avg)
+        print(f"Warning: Not enough data points after 5s for dataset {i} (only {len(y_for_psd)} points)")
+#avg SD - only compute if we have valid values
+if len(SD_arr) > 0:
+    # Filter out any NaN or inf values
+    SD_arr_clean = [sd for sd in SD_arr if np.isfinite(sd)]
+    if len(SD_arr_clean) > 0:
+        SD_avg = np.mean(SD_arr_clean)
+        print("average standard deviation: ", SD_avg)
+    else:
+        print("Warning: No valid standard deviation values found")
+        SD_avg = np.nan
+else:
+    print("Warning: No standard deviation values computed")
+    SD_avg = np.nan
 
 
 #form ax=b problem with u_avg and y_avg
@@ -150,4 +177,5 @@ plt.xlabel('u')
 plt.ylabel('y')
 plt.title('Linear Regression: y = k*u')
 plt.legend()
-# plt.savefig(plots_dir / 'linear_regression.pdf')
+plt.savefig(plots_dir / 'linear_regression.pdf')
+plt.show()
