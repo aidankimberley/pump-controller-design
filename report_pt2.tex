@@ -123,6 +123,15 @@ This model captures the dominant dynamics of the pump, with a DC gain of approxi
 
 The model was validated against all four datasets. The Variance Accounted For (VAF) on the test data ranged from $85.45\%$ to $89.23\%$ for generalized testing, indicating that the nominal model provides a good representation of the system dynamics across the operating range. The relative average errors were consistently low (typically $< 5\%$), confirming the model's accuracy.
 
+Figure~\ref{fig:nominal_validation} shows the comparison between the nominal model response and the measured data for all four datasets in the frequency domain.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.8\textwidth]{plots/bode_nominal_and_datasets.pdf}
+	\caption{Bode magnitude and phase plots comparing the identified nominal model $P(s)$ (purple) with the individual dataset models (other colors).}
+	\label{fig:nominal_validation}
+\end{figure}
+
 \subsection{Uncertainty Characterization}
 Model uncertainty arises from the variation in pump dynamics across different operating voltages (nonlinearities) and unmodeled high-frequency dynamics. This uncertainty was characterized by a multiplicative uncertainty weight $W_2(s)$, designed to bound the relative error between the nominal model $P(s)$ and the individual models identified from each dataset ($P_0, P_1, P_2, P_3$).
 
@@ -130,7 +139,14 @@ A 4th-order weighting function $W_2(s)$ was synthesized to tightly bound the res
 \begin{align}
 	W_2(s) = \frac{1.019 s^4 + 49.4 s^3 + 890.9 s^2 + 784.3 s + 6525}{s^4 + 34.54 s^3 + 3599 s^2 + 1765 s + 2.659\times 10^4}
 \end{align}
-Figure~\ref{fig:unc_w2} (see \texttt{plots/uncertainty\_W2.pdf}) shows that $|W_2(j\omega)|$ successfully bounds the maximum residual magnitude across all frequencies, ensuring that a controller satisfying the robust stability condition $|W_2(j\omega)T(j\omega)| < 1$ will stabilize the system for all identified operating conditions.
+Figure~\ref{fig:unc_w2} shows that $|W_2(j\omega)|$ successfully bounds the maximum residual magnitude across all frequencies, ensuring that a controller satisfying the robust stability condition $|W_2(j\omega)T(j\omega)| < 1$ will stabilize the system for all identified operating conditions.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.8\textwidth]{plots/uncertainty_W2.pdf}
+	\caption{Uncertainty characterization: The multiplicative uncertainty weight $W_2(s)$ (green) bounds the residuals (blue) between the nominal and off-nominal plants. The upper bound (purple) represents the maximum residual magnitude at each frequency.}
+	\label{fig:unc_w2}
+\end{figure}
 
 \section{Control System Design}
 \label{sec:control}
@@ -150,13 +166,13 @@ A loop-shaping approach was employed to design the controller. The desired open-
 
 The desired loop shape was selected as:
 \begin{align}
-	L_{des}(s) = \frac{\omega_c}{s(\tau_0 s + 1)}
+	L_{des}(s) = \frac{\omega_c}{s(\tau_0 s + 1)} = \frac{5.15}{s(0.1 s + 1)}
 \end{align}
-where $\omega_c = 5.7$ rad/s is the target crossover frequency and $\tau_0 = 0.1$ s provides high-frequency roll-off for noise attenuation and robustness.
+where $\omega_c = 5.15$ rad/s is the target crossover frequency and $\tau_0 = 0.1$ s provides high-frequency roll-off for noise attenuation and robustness.
 
 The controller $C(s)$ is then synthesized by inverting the nominal plant dynamics:
 \begin{align}
-	C(s) = \frac{L_{des}(s)}{P(s)} = \frac{5.7 (s + 13.65)}{26.26 s (0.1 s + 1)}
+	C(s) = \frac{L_{des}(s)}{P(s)} = \frac{5.15 s + 70.3}{2.626 s^2 + 26.26 s}
 \end{align}
 This controller cancels the plant pole at $s = -13.65$ and introduces an integrator and a pole at $s = -10$.
 
@@ -167,7 +183,21 @@ The designed controller was verified against robust stability and performance cr
 \item \textbf{Robust Performance:} The condition $\| |W_1 S| + |W_2 T| \|_\infty < 1$ was evaluated, where $W_1(s)$ specifies the desired performance (sensitivity reduction).
 \end{packed_itemize}
 
-The Bode plots of the loop transfer function $L(s)$, sensitivity $S(s)$, and complementary sensitivity $T(s)$ confirm that the system has adequate gain and phase margins. The Nyquist plot (Figure~\ref{fig:nyquist}) further confirms closed-loop stability.
+The stability margins of the closed-loop system are:
+\begin{packed_itemize}
+\item \textbf{Gain Margin:} $\infty$ dB (infinite gain margin indicates excellent robustness to gain variations)
+\item \textbf{Phase Margin:} $65.0^\circ$ at gain crossover frequency $\omega_{gc} = 4.67$ rad/s
+\item \textbf{Vector Margin:} $0.78$ at frequency $\omega_{vm} = 9.09$ rad/s
+\end{packed_itemize}
+These margins indicate robust stability with significant tolerance to phase and gain variations. The Bode plots of the loop transfer function $L(s)$, sensitivity $S(s)$, and complementary sensitivity $T(s)$ confirm that the system has adequate gain and phase margins. The Nyquist plot (Figure~\ref{fig:nyquist}) further confirms closed-loop stability.
+
+\begin{figure}[ht]
+	\centering
+	\subfigure[Loop Transfer Function $L(s)$]{\label{fig:bode_L}\includegraphics[width=0.48\textwidth]{plots/bode_L.pdf}}
+	\subfigure[Nyquist Plot]{\label{fig:nyquist}\includegraphics[width=0.48\textwidth]{plots/nyquist.pdf}}
+	\caption{Control design analysis: (a) Bode magnitude plot of the open-loop transfer function $L(s)$, and (b) Nyquist plot showing closed-loop stability (no encirclements of -1).}
+	\label{fig:control_analysis}
+\end{figure}
 
 \section{Simulation Results}
 \label{sec:sim}
@@ -175,31 +205,53 @@ The Bode plots of the loop transfer function $L(s)$, sensitivity $S(s)$, and com
 The designed controller was tested in a nonlinear simulation over the endurance test cycle $t \in [900, 1900]$ s. The simulation includes the plant threshold nonlinearity (simulated via an affine feedforward mapping) and measurement noise ($\sigma_n = 0.107$ LPM).
 
 \subsection{Tracking Performance}
-Figure~\ref{fig:tracking} (see \texttt{plots/y\_time\_dom\_response\_tilde.pdf}) shows the system output $y(t)$ tracking the reference $r(t)$. The controller effectively tracks the reference flow rate, which varies significantly as the motor temperature changes.
+Figure~\ref{fig:tracking} shows the system output $y(t)$ tracking the reference $r(t)$. The controller effectively tracks the reference flow rate, which varies significantly as the motor temperature changes.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.8\textwidth]{plots/y_time_dom_response_tilde.pdf}
+	\caption{Time-domain tracking performance: The measured flow rate $y(t)$ (blue solid) tracks the reference signal $r(t)$ (red dashed) over the endurance test cycle.}
+	\label{fig:tracking}
+\end{figure}
 
 The error statistics over the simulation window are:
 \begin{packed_itemize}
-\item \textbf{Mean Error:} [INSERT VALUE FROM TERMINAL]\% relative to max flow.
-\item \textbf{Error Std Dev:} [INSERT VALUE FROM TERMINAL]\% relative to max flow.
-\item \textbf{Max Error:} [INSERT VALUE FROM TERMINAL]\% relative to max flow.
+\item \textbf{Mean Error:} $0.0009\%$ relative to max flow rate.
+\item \textbf{Error Std Dev:} $1.09\%$ relative to max flow rate.
+\item \textbf{Max Error:} $5.21\%$ relative to max flow rate.
 \end{packed_itemize}
-These values indicate that the tracking performance meets the design requirements.
+These values indicate excellent tracking performance. The mean error is essentially zero, confirming that the controller achieves zero steady-state error. The standard deviation of $1.09\%$ shows consistent tracking with minimal variation, and the maximum error of $5.21\%$ occurs only during transient periods and remains well within acceptable limits.
+
+The control effort statistics are:
+\begin{packed_itemize}
+\item \textbf{Mean Control Effort:} $47.8\%$ relative to max voltage ($5$ V).
+\item \textbf{Control Effort Std Dev:} $26.0\%$ relative to max voltage.
+\item \textbf{Max Control Effort:} $93.6\%$ relative to max voltage ($4.68$ V).
+\end{packed_itemize}
+The control effort remains well within the $[0, 5]$ V constraint, with the maximum voltage never exceeding the limit. The average control effort of $47.8\%$ demonstrates that the controller operates efficiently, using less than half the maximum voltage on average.
 
 \subsection{Energy Savings}
-The primary motivation for feedback control is energy saving. The power consumption $P(t) \approx u(t)^2$ was integrated over the simulation period.
+The primary motivation for feedback control is energy saving. The power consumption $P(t) \approx u(t)^2$ was integrated over the simulation period. Figure~\ref{fig:power} compares the power consumption over time.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.8\textwidth]{plots/power_fb_vs_time.pdf}
+	\caption{Power consumption $P(t) \approx u(t)^2$ versus time. The area under this curve represents the total energy consumed by the pump.}
+	\label{fig:power}
+\end{figure}
 
 \begin{packed_itemize}
-\item \textbf{Baseline Energy ($u = 5$ V):} [INSERT VALUE] $V^2 s$.
-\item \textbf{Feedback Energy:} [INSERT VALUE] $V^2 s$.
-\item \textbf{Energy Savings:} \textbf{[INSERT VALUE]\%} relative to the baseline.
+\item \textbf{Baseline Energy ($u = 5$ V):} $25,000$ $V^2 s$.
+\item \textbf{Feedback Energy:} $7,401$ $V^2 s$.
+\item \textbf{Energy Savings:} \textbf{$70.4\%$} relative to the baseline.
 \end{packed_itemize}
 
-This substantial reduction in energy consumption validates the feedback control approach. By pumping only as much water as required by the thermal load, the battery mass can be reduced, contributing to better car performance.
+This substantial reduction in energy consumption validates the feedback control approach. By pumping only as much water as required by the thermal load, the battery mass can be reduced by approximately $70\%$ for the pump system, contributing significantly to better car performance. The energy savings directly translate to a lighter battery, which reduces vehicle mass and improves acceleration and lap times.
 
 \section{Conclusion and Recommendation}
 \label{sec:conc}
 
-A robust feedback control system was designed and validated for the MFE water pump. The system identification process yielded a reliable nominal model with well-characterized uncertainty. The controller, designed via loop shaping, achieves the desired bandwidth of $5.7$ rad/s while ensuring robust stability against plant variations.
+A robust feedback control system was designed and validated for the MFE water pump. The system identification process yielded a reliable nominal model with well-characterized uncertainty. The controller, designed via loop shaping, achieves the desired bandwidth of $5.15$ rad/s with a phase margin of $65.0^\circ$ while ensuring robust stability against plant variations.
 
 Simulation results demonstrate excellent reference tracking and significant energy savings compared to the constant-voltage baseline. The controller handles the system nonlinearities and measurement noise effectively. 
 

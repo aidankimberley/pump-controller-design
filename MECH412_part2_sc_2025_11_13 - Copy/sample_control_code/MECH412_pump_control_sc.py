@@ -19,16 +19,16 @@ import pathlib
 # %%
 # Plotting parameters
 # # Set up plots directory
-# plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
-# plots_dir.mkdir(exist_ok=True)
+plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
+plots_dir.mkdir(exist_ok=True)
 
-# # Get the directory where this script is located
-# script_dir = pathlib.Path(__file__).parent
-# # plt.rc('text', usetex=True)
-# # plt.rc('font', family='serif', size=14)
-# plt.rc('lines', linewidth=2)
-# plt.rc('axes', grid=True)
-# plt.rc('grid', linestyle='--')
+# Get the directory where this script is located
+script_dir = pathlib.Path(__file__).parent
+# plt.rc('text', usetex=True)
+# plt.rc('font', family='serif', size=14)
+plt.rc('lines', linewidth=2)
+plt.rc('axes', grid=True)
+plt.rc('grid', linestyle='--')
 
 
 # %%
@@ -124,7 +124,7 @@ w_r_h_Hz = 0.015  # Hz
 
 gamma_n, w_n_l = e_nor_n/n_nor, Hz2rps(w_r_h_Hz * 100)
 gamma_r, w_r_h = e_nor_r/r_nor, Hz2rps(w_r_h_Hz)
-gamma_u, w_u_l = e_nor_r*u_nor_n/n_nor/u_nor_r, Hz2rps(w_r_h_Hz*105)
+gamma_u, w_u_l = e_nor_r*u_nor_n/n_nor/u_nor_r, Hz2rps(w_r_h_Hz*250)
 gamma_d, w_d_h = 1, w_r_h #TODO: MAYBE CHANGE THIS
 
 
@@ -178,7 +178,7 @@ fig.tight_layout()
 tau_0 = 0.1
 tau_1 = 0.01
 tau_2 = 0.01
-w_c = 5.7
+w_c = 5.15
 #L_des = w_c/s * (1/s * (tau_1*s+1))
 L_des = w_c/ (s*(tau_0*s+1))
 print("L_des = ", L_des)
@@ -237,6 +237,13 @@ count, contour = control.nyquist_plot(control.minreal(P * C),
 # ax_Nyquist.axis('equal')
 fig_Nyquist.tight_layout()
 
+# Print vector, gain, and phase margins
+print(f"Vector margin: {vm}")
+print(f"Gain margin: {gm} (linear), {20 * np.log10(gm):.2f} dB")
+print(f"Phase margin: {pm} deg")
+
+
+
 # fig_L.savefig(plots_dir / 'bode_L.pdf')
 # fig_RP.savefig(plots_dir / 'robust_performance.pdf')
 # fig_RP_RD.savefig(plots_dir / 'robust_performance_RD.pdf')
@@ -255,7 +262,7 @@ fig_Nyquist.tight_layout()
 # Reference
 
 data = np.loadtxt(
-    "RL_temp_motor_mod.csv",
+    script_dir / "RL_temp_motor_mod.csv",
     dtype=float,
     delimiter=',',
     skiprows=1,
