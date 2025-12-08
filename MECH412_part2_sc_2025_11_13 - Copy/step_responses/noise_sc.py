@@ -14,8 +14,8 @@ from matplotlib import pyplot as plt
 import pathlib
 
 # Set up plots directory
-plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
-plots_dir.mkdir(exist_ok=True)
+# plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
+# plots_dir.mkdir(exist_ok=True)
 
 # %%
 # Plotting parameters
@@ -101,7 +101,7 @@ for i in range(N_data):  # N_data
     ax[0].set_ylabel(r'$\tilde{u}(t)$ (V)')
     ax[1].set_ylabel(r'$\tilde{y}(t)$ (LPM)')
     fig.tight_layout()
-    fig.savefig(plots_dir / f'time_domain_{i}.pdf')
+    # fig.savefig(plots_dir / f'time_domain_{i}.pdf')
 
     # Compute and plot PSD of y
     from scipy.signal import welch
@@ -127,7 +127,7 @@ for i in range(N_data):  # N_data
     plt.title(f'Power Spectral Density of y (Dataset {i}) (t > 5s)')
     plt.grid(True, which='both', ls='--')
     plt.tight_layout()
-    plt.savefig(plots_dir / f'psd_{i}.pdf')
+    # plt.savefig(plots_dir / f'psd_{i}.pdf')
 #avg SD
 SD_avg = np.mean(SD_arr)
 print("average standard deviation: ", SD_avg)
@@ -138,7 +138,7 @@ print("average standard deviation: ", SD_avg)
 A = np.array(u_arr).reshape(-1, 1)   # predictor (u), must be 2D for lstsq
 b = np.array(y_arr)                  # response (y)
 k, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
-print("Linear regression constant (k) relating y = k*u: ", k[0])
+# print("Linear regression constant (k) relating y = k*u: ", k[0])
 
 # Plot the regression results
 plt.figure()
@@ -150,4 +150,4 @@ plt.xlabel('u')
 plt.ylabel('y')
 plt.title('Linear Regression: y = k*u')
 plt.legend()
-plt.savefig(plots_dir / 'linear_regression.pdf')
+# plt.savefig(plots_dir / 'linear_regression.pdf')

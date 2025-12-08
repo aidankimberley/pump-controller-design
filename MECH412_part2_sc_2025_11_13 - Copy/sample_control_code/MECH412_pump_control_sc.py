@@ -9,6 +9,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy import integrate
 from scipy import signal
+from scipy import fft
 import control
 
 # Custom packages
@@ -17,17 +18,17 @@ import pathlib
 
 # %%
 # Plotting parameters
-# Set up plots directory
-plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
-plots_dir.mkdir(exist_ok=True)
+# # Set up plots directory
+# plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
+# plots_dir.mkdir(exist_ok=True)
 
-# Get the directory where this script is located
-script_dir = pathlib.Path(__file__).parent
-# plt.rc('text', usetex=True)
-# plt.rc('font', family='serif', size=14)
-plt.rc('lines', linewidth=2)
-plt.rc('axes', grid=True)
-plt.rc('grid', linestyle='--')
+# # Get the directory where this script is located
+# script_dir = pathlib.Path(__file__).parent
+# # plt.rc('text', usetex=True)
+# # plt.rc('font', family='serif', size=14)
+# plt.rc('lines', linewidth=2)
+# plt.rc('axes', grid=True)
+# plt.rc('grid', linestyle='--')
 
 
 # %%
@@ -111,7 +112,7 @@ u_nor_n = 0.02*max_V #V # TODO: MAYBE CHANGE THIS
 
 # Dummy values. You must change everything here!
 #Get this from fft of reference
-w_r_h_Hz = 0.03  # Hz
+w_r_h_Hz = 0.015  # Hz
 
 # Noise and reference bounds
 # gamma_n, w_n_l = e_nor_n/e_nor_r, Hz2rps(w_r_h_Hz * 100)
@@ -124,7 +125,7 @@ w_r_h_Hz = 0.03  # Hz
 gamma_n, w_n_l = e_nor_n/n_nor, Hz2rps(w_r_h_Hz * 100)
 gamma_r, w_r_h = e_nor_r/r_nor, Hz2rps(w_r_h_Hz)
 gamma_u, w_u_l = e_nor_r*u_nor_n/n_nor/u_nor_r, Hz2rps(w_r_h_Hz*105)
-gamma_d, w_d_h = 1, w_r_h / 10 #TODO: MAYBE CHANGE THIS
+gamma_d, w_d_h = 1, w_r_h #TODO: MAYBE CHANGE THIS
 
 
 
@@ -154,12 +155,12 @@ W1_inv = 1 / W1
 fig, ax = srp.bode_mag_W1_W2(W1, W2, w_d_h, w_n_l, w_shared, Hz = True)
 fig.set_size_inches(height * gr, height, forward=True)
 ax.legend(loc='upper right')
-fig.savefig(plots_dir / 'bode_W1_W2.pdf')
+# fig.savefig(plots_dir / 'bode_W1_W2.pdf')
 
 fig, ax = srp.bode_mag_W1_inv_W2_inv(W1, W2, gamma_r, w_r_h, w_d_h, gamma_n, w_n_l, w_shared_low, w_shared_high, w_shared, Hz = True)
 fig.set_size_inches(height * gr, height, forward=True)
 ax.legend(loc='lower right')
-fig.savefig(plots_dir / 'bode_W1_inv_W2_inv.pdf')
+# fig.savefig(plots_dir / 'bode_W1_inv_W2_inv.pdf')
 
 
 # %%
@@ -167,7 +168,7 @@ fig.savefig(plots_dir / 'bode_W1_inv_W2_inv.pdf')
 wmin, wmax, N_w_robust_nyq = np.log10(Hz2rps(10**(-4))), np.log10(Hz2rps(10**(4))), 1000
 count, fig, ax = srp.robust_nyq(P, P_off_nom, W2, wmin, wmax, N_w_robust_nyq)
 fig.tight_layout()
-fig.savefig(plots_dir / 'robust_nyquist.pdf')
+# fig.savefig(plots_dir / 'robust_nyquist.pdf')
 
 # %%
 # Control design.
@@ -236,16 +237,16 @@ count, contour = control.nyquist_plot(control.minreal(P * C),
 # ax_Nyquist.axis('equal')
 fig_Nyquist.tight_layout()
 
-fig_L.savefig(plots_dir / 'bode_L.pdf')
-fig_RP.savefig(plots_dir / 'robust_performance.pdf')
-fig_RP_RD.savefig(plots_dir / 'robust_performance_RD.pdf')
-fig_S_T_W1_inv_W2_inv.savefig(plots_dir / 'S_T_weights.pdf')
-fig_S_T.savefig(plots_dir / 'S_T.pdf')
-fig_L_P.savefig(plots_dir / 'L_P.pdf')
-fig_L_P_C.savefig(plots_dir / 'L_P_C.pdf')
-fig_margins.savefig(plots_dir / 'margins.pdf')
-fig_Gof4.savefig(plots_dir / 'Gof4.pdf')
-fig_Nyquist.savefig(plots_dir / 'nyquist.pdf')
+# fig_L.savefig(plots_dir / 'bode_L.pdf')
+# fig_RP.savefig(plots_dir / 'robust_performance.pdf')
+# fig_RP_RD.savefig(plots_dir / 'robust_performance_RD.pdf')
+# fig_S_T_W1_inv_W2_inv.savefig(plots_dir / 'S_T_weights.pdf')
+# fig_S_T.savefig(plots_dir / 'S_T.pdf')
+# fig_L_P.savefig(plots_dir / 'L_P.pdf')
+# fig_L_P_C.savefig(plots_dir / 'L_P_C.pdf')
+# fig_margins.savefig(plots_dir / 'margins.pdf')
+# fig_Gof4.savefig(plots_dir / 'Gof4.pdf')
+# fig_Nyquist.savefig(plots_dir / 'nyquist.pdf')
 
 
 
@@ -254,7 +255,7 @@ fig_Nyquist.savefig(plots_dir / 'nyquist.pdf')
 # Reference
 
 data = np.loadtxt(
-    script_dir / "RL_temp_motor_mod.csv",
+    "RL_temp_motor_mod.csv",
     dtype=float,
     delimiter=',',
     skiprows=1,
@@ -293,42 +294,7 @@ ax.plot(t, temp_raw)
 ax.set_xlabel(r'$t$ (s)')
 ax.set_ylabel(r'Temperature (°C)')
 fig.tight_layout()
-fig.savefig(plots_dir / 'temperature_raw.pdf')
-
-# --- Fix FFT code ---
-import numpy.fft as npfft
-
-# Calculate length of the current temp_raw signal (can be much shorter than N_temp_data if a window is selected)
-N_fft = len(temp_raw)
-# Compute FFT only over current window, with correct normalization
-T_fft = npfft.rfft(temp_raw)
-T_mag = np.abs(T_fft) / N_fft  # scale for energy conservation
-
-# Correct scaling for single-sided spectrum (except DC and Nyquist, if present)
-if N_fft % 2 == 0:  # even-length: Nyquist present
-    T_mag[1:-1] *= 2
-else:               # odd-length: no Nyquist
-    T_mag[1:] *= 2
-
-# Get frequencies for current sampling window
-f = npfft.rfftfreq(N_fft, d=dt)
-omega = 2 * np.pi * f
-
-# Remove DC (0 frequency) component so it doesn't dominate the spectrum
-T_mag[0] = 0
-
-# Optionally, plot FFT magnitude for review (optional break out for debugging)
-fig_fft, ax_fft = plt.subplots()
-fig_fft.set_size_inches(height * gr, height, forward=True)
-ax_fft.loglog(omega, T_mag)  # Use log scale for y-axis
-ax_fft.set_xlabel(r'$\omega$ (rad/s)')
-ax_fft.set_ylabel(r'FFT Magnitude')
-ax_fft.set_title('Temperature Profile Frequency Content (zero DC removed)')
-fig_fft.tight_layout()
-fig_fft.savefig(plots_dir / 'temp_profile_fft.pdf')
-
-
-
+# fig.savefig(plots_dir / 'temperature_raw.pdf')
 
 # Temperature bounds for normalization
 temp_raw_max = np.max(np.abs(temp_raw))
@@ -352,10 +318,57 @@ ax.plot(t, temp_norm)
 ax.set_xlabel(r'$t$ (s)')
 ax.set_ylabel(r'Normalized Temperature (unitless)')
 fig.tight_layout()
-fig.savefig(plots_dir / 'temperature_normalized.pdf')
+# fig.savefig(plots_dir / 'temperature_normalized.pdf')
 
+# %% 
+# Extract frequency content of temperature profile
+N_fft = fft.next_fast_len(temp_norm.size, real=True)
 
+T_fft = fft.rfft(temp_norm, n=N_fft) / N_fft  # same units as u
+T_mag = np.abs(T_fft)  # compute the magnitude of each u_fft
+T_mag[1:] = 2 * T_mag[1:]  # multiply all mag's by 2, but the zero frequency
 
+f = fft.rfftfreq(N_fft, d=dt)  # the frequencies in Hz
+omega = f * 2 * np.pi   # the frequencies in rad/s
+
+#Plots
+# FFT magnitude 
+fig, ax = plt.subplots()
+fig.set_size_inches(height * gr, height, forward=True)
+ax.plot(f, T_mag)
+ax.set_xlabel(r'$f$ (Hz)')
+ax.set_ylabel(r'$|T(f)|$ (unitless)')
+fig.tight_layout()
+
+# FFT zoomed in on dominant frequencies
+fig, ax = plt.subplots()
+fig.set_size_inches(height * gr, height, forward=True)
+ax.plot(f, T_mag)
+ax.vlines(w_r_h_Hz, 0, 1, color='r', linestyle='--')
+ax.set_xlim(0, 0.05) # 1 / 10s
+ax.set_xlabel(r'$f$ (Hz)')
+ax.set_ylabel(r'$|T(\omega)|$ (unitless)')
+fig.tight_layout()
+
+# Semilog
+fig, ax = plt.subplots()
+fig.set_size_inches(height * gr, height, forward=True)
+ax.semilogx(omega, T_mag)
+ax.set_xlabel(r'$\omega$ (rad/s)')
+ax.set_ylabel(r'$|T(\omega)|$ (unitless)')
+fig.tight_layout()
+
+# Loglog
+fig, ax = plt.subplots()
+fig.set_size_inches(height * gr, height, forward=True)
+ax.loglog(omega, T_mag)
+ax.vlines(w_r_h_Hz, 0, 1, color='r', linestyle='--')
+ax.set_xlabel(r'$\omega$ (rad/s)')
+ax.set_ylabel(r'$|T(\omega)|$ (unitless)')
+fig.tight_layout()
+
+# %% 
+# Define Reference in terms of flow rate
 # Convert temp into a reference LPM
 r_raw_tilde = temp_norm * max_LPM
 
@@ -374,7 +387,7 @@ ax.set_ylabel(r'$r(t)$ (LPM)')
 ax.plot(t, r, '--', label='$r(t)$', color='C3')
 ax.legend(loc='upper right')
 fig.tight_layout()
-fig.savefig(plots_dir / 'reference.pdf')
+# fig.savefig(plots_dir / 'reference.pdf')
 #plt.show()
 
 # Noise
@@ -545,7 +558,7 @@ ax[1].plot(t, u_nor_ref * np.ones(t.shape[0],), '--', label=r'$u_{nor, r}$', col
 ax[0].legend(loc='lower right')
 ax[1].legend(loc='lower right')
 fig.tight_layout()
-fig.savefig(plots_dir / 'y_u_time_dom_response_tilde.pdf')
+# fig.savefig(plots_dir / 'y_u_time_dom_response_tilde.pdf')
 
 # Plot
 fig, ax = plt.subplots(figsize=(height * gr, height))
@@ -555,7 +568,7 @@ ax.plot(t, y_tilde, '-', label=r'$\tilde{y}(t)$', color='C0')
 ax.plot(t, r_tilde, '--', label=r'$\tilde{r}(t)$', color='C3')
 ax.legend(loc='best')
 fig.tight_layout()
-fig.savefig(plots_dir / 'y_time_dom_response_tilde.pdf')
+# fig.savefig(plots_dir / 'y_time_dom_response_tilde.pdf')
 
 # Plot
 fig, ax = plt.subplots(figsize=(height * gr, height))
@@ -566,7 +579,7 @@ ax.plot(t, e_nor_ref * np.ones(t.shape[0],), '--', label=r'$e_{nor, r}$', color=
 ax.plot(t, -e_nor_ref * np.ones(t.shape[0],), '--', color='C6')
 ax.legend(loc='upper right')
 fig.tight_layout()
-fig.savefig(plots_dir / 'e_time_dom_response_tilde.pdf')
+# fig.savefig(plots_dir / 'e_time_dom_response_tilde.pdf')
 
 # Plot
 fig, ax = plt.subplots(2, 1, figsize=(height * gr, height))
@@ -583,7 +596,7 @@ ax[1].plot(t, u_nor_ref * np.ones(t.shape[0],), '--', label=r'$u_{nor, r}$', col
 ax[0].legend(loc='lower right')
 ax[1].legend(loc='lower right')
 fig.tight_layout()
-fig.savefig(plots_dir / 'u_e_time_dom_response_tilde.pdf')
+# fig.savefig(plots_dir / 'u_e_time_dom_response_tilde.pdf')
 
 
 
@@ -601,7 +614,7 @@ ax.set_xlabel(r'$t$ (s)')
 ax.plot(t, power, '-', label=r'$P(t)$', color='C0')
 ax.legend(loc='best')
 fig.tight_layout()
-fig.savefig(plots_dir / 'power_fb_vs_time.pdf')
+# fig.savefig(plots_dir / 'power_fb_vs_time.pdf')
 
 # Integrate using Simpson's rule to get total ``energy" in units of V^2 s
 energy = integrate.simpson(power, x=t)
