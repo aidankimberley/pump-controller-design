@@ -19,11 +19,11 @@ import pathlib
 # %%
 # Plotting parameters
 # # Set up plots directory
-plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
-plots_dir.mkdir(exist_ok=True)
+# plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
+# plots_dir.mkdir(exist_ok=True)
 
 # Get the directory where this script is located
-script_dir = pathlib.Path(__file__).parent
+# script_dir = pathlib.Path(__file__).parent
 # plt.rc('text', usetex=True)
 # plt.rc('font', family='serif', size=14)
 plt.rc('lines', linewidth=2)
@@ -101,18 +101,21 @@ P_off_nom = [P * (1 + W2 * Delta[i]) for i in range(len(Delta))]
 #normalization constants:
 SD_noise = 0.107 #LPM
 
-e_nor_r = 0.05 * max_LPM #LPM
-n_nor = SD_noise #LPM
-e_nor_n = n_nor #LPM
 r_nor = max_LPM #LPM
 u_nor_r = max_V #V
-u_nor_n = 0.02*max_V #V # TODO: MAYBE CHANGE THIS
+e_nor_r = 0.05 * max_LPM #LPM
 
+n_nor = SD_noise #LPM
+u_nor_n = 0.02*max_V #V 
+e_nor_n = n_nor #LPM
 
+d_nor = 0.256 # V
+u_nor_d = d_nor
+e_nor_d = 0.01 * max_LPM #LPM
 
-# Dummy values. You must change everything here!
 #Get this from fft of reference
 w_r_h_Hz = 0.015  # Hz
+w_n_Hz = 3 # Hz
 
 # Noise and reference bounds
 # gamma_n, w_n_l = e_nor_n/e_nor_r, Hz2rps(w_r_h_Hz * 100)
@@ -122,10 +125,10 @@ w_r_h_Hz = 0.015  # Hz
 
 #gamma_n = e_nor_n/n_nor
 
-gamma_n, w_n_l = e_nor_n/n_nor, Hz2rps(w_r_h_Hz * 100)
+gamma_n, w_n_l = e_nor_n/n_nor, Hz2rps(w_n_Hz)
 gamma_r, w_r_h = e_nor_r/r_nor, Hz2rps(w_r_h_Hz)
-gamma_u, w_u_l = e_nor_r*u_nor_n/n_nor/u_nor_r, Hz2rps(w_r_h_Hz*250)
-gamma_d, w_d_h = 1, w_r_h #TODO: MAYBE CHANGE THIS
+gamma_u, w_u_l = e_nor_r*u_nor_n/n_nor/u_nor_r, Hz2rps(w_n_Hz)#w_r_h_Hz*250)
+gamma_d, w_d_h = e_nor_d/d_nor, w_r_h #TODO: MAYBE CHANGE THIS
 
 
 
@@ -175,11 +178,13 @@ fig.tight_layout()
 # Dummy controller, you must change!
 #w_c = np.sqrt(w_n_l * w_d_h)*1
 
-tau_0 = 0.1
+tau_0 = 0.13
 tau_1 = 0.01
 tau_2 = 0.01
 w_c = 5.15
 #L_des = w_c/s * (1/s * (tau_1*s+1))
+
+# Simple PI + rolloff controller
 L_des = w_c/ (s*(tau_0*s+1))
 print("L_des = ", L_des)
 
@@ -262,7 +267,7 @@ print(f"Phase margin: {pm} deg")
 # Reference
 
 data = np.loadtxt(
-    script_dir / "RL_temp_motor_mod.csv",
+    "RL_temp_motor_mod.csv",
     dtype=float,
     delimiter=',',
     skiprows=1,
@@ -547,7 +552,7 @@ u_tilde = u
 e_tilde = e
 
 # Max acceptable error and control values. 
-e_nor_ref = 0.56  # Dummy variable, you change
+e_nor_ref = e_nor_r 
 u_nor_ref = 5  # V
 
 

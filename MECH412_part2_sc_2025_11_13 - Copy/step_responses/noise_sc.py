@@ -2,7 +2,6 @@
 
 J R Forbes, 2025/09/10
 """
-
 # %%
 # Libraries
 import numpy as np
@@ -14,8 +13,8 @@ from matplotlib import pyplot as plt
 import pathlib
 
 # Set up plots directory
-plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
-plots_dir.mkdir(exist_ok=True)
+# plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
+# plots_dir.mkdir(exist_ok=True)
 
 # %%
 # Plotting parameters
@@ -101,7 +100,7 @@ for i in range(N_data):  # N_data
     ax[0].set_ylabel(r'$\tilde{u}(t)$ (V)')
     ax[1].set_ylabel(r'$\tilde{y}(t)$ (LPM)')
     fig.tight_layout()
-    fig.savefig(plots_dir / f'time_domain_{i}.pdf')
+    # fig.savefig(plots_dir / f'time_domain_{i}.pdf')
 
     # Compute and plot PSD of y
     from scipy.signal import welch
@@ -110,62 +109,39 @@ for i in range(N_data):  # N_data
     mask = t > 5
     y_for_psd = y_raw[mask]
     t_for_psd = t[mask]
-    
-    # Check if we have enough data points after 5 seconds
-    if len(y_for_psd) > 10:  # Need at least 10 points for meaningful PSD
-        if len(t_for_psd) > 1:
-            fs = 1.0 / (t_for_psd[1] - t_for_psd[0])  # Sampling frequency from time step
-        else:
-            fs = 1.0  # fallback if insufficient points
-        print("fs: ", fs)
-        
-        # Ensure we have enough points for welch (needs at least nperseg points)
-        nperseg = min(1024, len(y_for_psd))
-        if nperseg >= 4:  # welch needs at least 4 points
-            f, Pxx = welch(y_for_psd, fs=fs, nperseg=nperseg)
-            # Get standard deviation of noise
-            if len(Pxx) > 0 and np.all(np.isfinite(Pxx)):
-                SD = np.sqrt(np.mean(Pxx) * (fs / 2))
-                SD_arr.append(SD)
-                print("standard dev: ", SD)
-                
-                # Plot PSD
-                fig_psd = plt.figure()
-                plt.semilogy(f, Pxx)
-                plt.xlabel('Frequency [Hz]')
-                plt.ylabel('PSD [$y^2$/Hz]')
-                plt.title(f'Power Spectral Density of y (Dataset {i}) (t > 5s)')
-                plt.grid(True, which='both', ls='--')
-                plt.tight_layout()
-                fig_psd.savefig(plots_dir / f'psd_{i}.pdf')
-                plt.close(fig_psd)
-            else:
-                print(f"Warning: Invalid PSD for dataset {i}, skipping")
-        else:
-            print(f"Warning: Insufficient points for PSD calculation in dataset {i}")
+    if len(t_for_psd) > 1:
+        fs = 1.0 / (t_for_psd[1] - t_for_psd[0])  # Sampling frequency from time step
     else:
-        print(f"Warning: Not enough data points after 5s for dataset {i} (only {len(y_for_psd)} points)")
-#avg SD - only compute if we have valid values
-if len(SD_arr) > 0:
-    # Filter out any NaN or inf values
-    SD_arr_clean = [sd for sd in SD_arr if np.isfinite(sd)]
-    if len(SD_arr_clean) > 0:
-        SD_avg = np.mean(SD_arr_clean)
-        print("average standard deviation: ", SD_avg)
-    else:
-        print("Warning: No valid standard deviation values found")
-        SD_avg = np.nan
-else:
-    print("Warning: No standard deviation values computed")
-    SD_avg = np.nan
+        fs = 1.0  # fallback if insufficient points
+    print("fs: ", fs)
+    f, Pxx = welch(y_for_psd, fs=fs, nperseg=min(1024, len(y_for_psd)))
+    # Get standard deviation of noise
+    SD = np.sqrt(np.mean(Pxx) * (fs / 2))
+    SD_arr.append(SD)
+    print("standard dev: ", SD)
+    plt.figure()
+    plt.semilogy(f, Pxx)
+    plt.xlabel('Frequency [Hz]')
+    plt.ylabel('PSD [$y^2$/Hz]')
+    plt.title(f'Power Spectral Density of y (Dataset {i}) (t > 5s)')
+    plt.grid(True, which='both', ls='--')
+    plt.tight_layout()
+    # plt.savefig(plots_dir / f'psd_{i}.pdf')
+#avg SD
+SD_avg = np.mean(SD_arr)
+print("average standard deviation: ", SD_avg)
 
 
-#form ax=b problem with u_avg and y_avg
+#form ax=b problem for mapping V to q
 # Perform linear regression (least squares) to get constant k: y = k*u
 A = np.array(u_arr).reshape(-1, 1)   # predictor (u), must be 2D for lstsq
 b = np.array(y_arr)                  # response (y)
 k, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
 # print("Linear regression constant (k) relating y = k*u: ", k[0])
+
+residuals_V_LPM = A @ k - b
+# d_nor = np.std(residuals)
+# print('max expected disturbance from feedforward mismatch: ', d_nor)
 
 # Plot the regression results
 plt.figure()
@@ -173,9 +149,33 @@ plt.plot(u_arr, y_arr, 'o', label='Data (u, y)')
 u_line = np.linspace(0, 5, 100)
 y_fit = k[0] * u_line
 plt.plot(u_line, y_fit, '-', label=f'Fit: y = {k[0]:.3f}*u')
-plt.xlabel('u')
-plt.ylabel('y')
-plt.title('Linear Regression: y = k*u')
+plt.xlabel('u [V]')
+plt.ylabel('y [LMP]')
+# plt.title('Linear Regression: y = k*u')
 plt.legend()
-plt.savefig(plots_dir / 'linear_regression.pdf')
-plt.show()
+# plt.savefig(plots_dir / 'linear_regression.pdf')
+
+#form inverse Ax=b problem for mapping q to V
+# Perform linear regression (least squares) to get constant k: y = k*u
+A = np.array(y_arr).reshape(-1, 1)   # predictor (u), must be 2D for lstsq
+b = np.array(u_arr)                  # response (y)
+k, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
+# print("Linear regression constant (k) relating y = k*u: ", k[0])
+
+residuals_LPM_V = A @ k - b
+d_nor = np.std(residuals_LPM_V)
+print('max expected disturbance from feedforward mismatch: ', d_nor)
+
+# Plot the regression results
+plt.figure()
+plt.plot(y_arr, u_arr, 'o', label='Data (y, u)')
+y_line = np.linspace(0, np.max(y_arr), 100)
+u_fit = k[0] * y_line
+plt.plot(y_line, u_fit, '-', label=f'Fit: y = {k[0]:.3f}*u')
+plt.xlabel('y  [LPM]')
+plt.ylabel('u [V]')
+# plt.title('Linear Regression: u = k*y')
+plt.legend()
+# plt.savefig(plots_dir / 'linear_regression.pdf')
+
+# %%
