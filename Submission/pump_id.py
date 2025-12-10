@@ -6,8 +6,8 @@ from matplotlib import pyplot as plt
 import pathlib
 
 # Set up plots directory
-# plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
-# plots_dir.mkdir(exist_ok=True)
+plots_dir = pathlib.Path("/Users/aidan1/Documents/McGill/MECH412/MECH 412 Pump Project/plots")
+plots_dir.mkdir(exist_ok=True)
 # Custom libraries 
 import d2c 
 '''
@@ -244,7 +244,7 @@ def test_error(Pd_ID, data, plot=False, test_indices=[0,1,2,3]):
                 a.set_xlabel(r'$t$ (s)')
                 a.legend(loc='upper right')
             fig.tight_layout()
-            # fig.savefig(plots_dir / f'dataset_{i}_test_error.pdf')
+            fig.savefig(plots_dir / f'dataset_{i}_test_error.pdf')
             plt.show()
         
         error = yd_ID_test - y_test_centered
@@ -353,7 +353,7 @@ ax[1].set_title("Phase Bode Plot of Pc_ID3,2,1,0")
 ax[0].legend(loc='upper right')
 ax[1].legend(loc='upper right')
 fig.tight_layout(pad=2.0)  # Add some vertical space to prevent overlapping
-# fig.savefig(plots_dir / 'bode_all_datasets.pdf')
+fig.savefig(plots_dir / 'bode_all_datasets.pdf')
 plt.show()
 
 # %%
@@ -485,7 +485,7 @@ ax[1].set_title("Phase Bode Plot of Pc_ID3,2,1,0 and Pc_nominal")
 ax[0].legend(loc='upper right')
 ax[1].legend(loc='upper right')
 fig.tight_layout(pad=2.0)  # Add some vertical space to prevent overlapping
-# fig.savefig(plots_dir / 'bode_nominal_and_datasets.pdf')
+fig.savefig(plots_dir / 'bode_nominal_and_datasets.pdf')
 plt.show()
 
 
@@ -511,7 +511,7 @@ plt.legend(loc='upper right')
 plt.xlabel(r'$\omega$ (rad/s)')
 plt.ylabel(r'$\Delta P_c(j\omega)$ (dB)')
 plt.title("Magnitude of Residuals of Pc_ID3,2,1,0")
-# plt.savefig(plots_dir / 'residuals_magnitude.pdf')
+plt.savefig(plots_dir / 'residuals_magnitude.pdf')
 plt.show()
 
 #%%
@@ -561,7 +561,7 @@ ax[0].semilogx(w_shared, mag_max_dB, '-', color='C4', label='upper bound')
 ax[1].semilogx(w_shared, mag_max_abs, '-', color='C4', label='upper bound')
 ax[0].legend(loc='best')
 ax[1].legend(loc='best')
-# fig.savefig(plots_dir / 'residuals_upper_bound.pdf')
+fig.savefig(plots_dir / 'residuals_upper_bound.pdf')
 
 
 # %%
@@ -606,6 +606,6 @@ ax[1].semilogx(w_shared, mag_W2_abs, '-', color='seagreen', label='optimal bound
 ax[0].legend(loc='best')
 ax[1].legend(loc='best')
 fig.tight_layout()
-# fig.savefig(plots_dir / 'uncertainty_W2.pdf')
+fig.savefig(plots_dir / 'uncertainty_W2.pdf')
 plt.show()
 # %%

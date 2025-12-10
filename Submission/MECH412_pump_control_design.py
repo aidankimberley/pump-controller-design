@@ -235,12 +235,10 @@ fig_Gof4.set_size_inches(height * gr, height, forward=True)
 
 # Nyquist
 fig_Nyquist, ax_Nyquist = plt.subplots()
-fig_Nyquist.set_size_inches(height * gr, height, forward=True)
 count, contour = control.nyquist_plot(control.minreal(P * C),
                                       omega=w_shared_2,
                                       plot=True,
-                                      return_contour=True,
-                                      title='')
+                                      return_contour=True)
 # ax_Nyquist.axis('equal')
 fig_Nyquist.tight_layout()
 
